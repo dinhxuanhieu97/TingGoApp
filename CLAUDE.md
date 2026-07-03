@@ -58,7 +58,7 @@ backend/
     TingGo.IntegrationTests/
 ```
 
-Module chỉ được tham chiếu `SharedKernel` (không tham chiếu module khác trực tiếp — giao tiếp qua events/contracts trong SharedKernel).
+Module được tham chiếu `SharedKernel` + `Infrastructure` (để dùng `TingGoDbContext`). Module KHÔNG tham chiếu module khác trực tiếp — giao tiếp qua contracts trong `SharedKernel/Contracts` (ví dụ `IMembershipService`). Entity của module đăng ký vào DbContext qua `IModuleEntityConfigurator`.
 
 ## Definition of Done (PRD mục 12 — rút gọn)
 
