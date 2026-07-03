@@ -142,6 +142,21 @@ Xây **TingGo MCP Server** — cầu nối để Claude (và sau này AI agent k
 
 ---
 
+## 3.5. THỨ TỰ CÔNG VIỆC CÒN LẠI (đã chốt 2026-07-03 — sau khi xong Sprint 1–5)
+
+Tiến độ thực tế: Sprint 1–5 hoàn thành trong 1 ngày với Claude (roadmap gốc: 12 tuần). Thứ tự còn lại:
+
+| # | Việc | Lý do xếp trước | Gate hoàn thành |
+|---|------|-----------------|-----------------|
+| 0 | **TingGo MCP Server** (mục 3, Giai đoạn 1) | Làm NGAY — tăng tốc test/QA cho mọi sprint sau | Claude seed được venue + bắn order qua MCP |
+| 1 | **Sprint 6 — Real-time**: outbox worker → SignalR, order board merchant web, khách bỏ polling | Giá trị lõi "Ting!"; outbox đã sẵn, chỉ thiếu worker | Đơn hiện trên board < 2s (KPI) |
+| 2 | **Sprint 7 — Vận hành**: service request (gọi nhân viên), bill, đóng/mở bàn, audit log | Hoàn thiện vòng đời phiên bàn trước khi đụng thanh toán | Quán chạy được nhiều bàn nhiều nhân viên |
+| 3 | **Sprint 8 — Thanh toán + thông báo**: cash + QR tĩnh (ADR-004), push notification; TTS qua ITtsEngine (ADR-005, on-device trước) | Cần Sprint 7 (bill) làm nền | Đóng bàn ghi nhận thanh toán đúng |
+| 4 | **Sprint 9 — Báo cáo + Hardening**: reports, export CSV, rate limiting, security review, backup; dựng AWS staging (ADR-002) | Sát pilot mới dựng cloud, đỡ chi phí | Staging AWS chạy, security checklist pass |
+| 5 | **Sprint 10 / Giai đoạn F — QA + Pilot**: integration/load test, monitoring, pilot 5 quán, feedback P0/P1/P2 | Cuối cùng theo kế hoạch | 5 quán pilot, KPI đo được |
+
+Mobile app (React Native): bắt đầu song song từ #1 (Sprint 6) vì cần SignalR client — hoặc sau #3 nếu ưu tiên web trước. Quyết định khi vào Sprint 6.
+
 ## 4. VIỆC CẦN LÀM NGAY (tuần này)
 
 1. ~~Chốt ADR-001 → ADR-005~~ ✅ Đã tạo tại `docs/adr/` (2026-07-03): RN, AWS (dev local trước), OTP email, cash + QR tĩnh, TTS CapCut qua `ITtsEngine` (chờ chi tiết API).

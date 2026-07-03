@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "tinggo": {
+      "command": "node",
+      "args": ["tools/tinggo-mcp-server/dist/index.js"],
+      "env": {
+        "TINGGO_API_URL": "http://localhost:5080/api/v1",
+        "TINGGO_MAILPIT_URL": "http://localhost:8025"
+      }
+    }
+  }
+}
