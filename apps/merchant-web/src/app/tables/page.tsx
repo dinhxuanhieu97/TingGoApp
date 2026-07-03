@@ -98,6 +98,19 @@ export default function TablesPage() {
     }
   }
 
+  async function collectPayment(session: SessionInfo, method: "cash" | "bank_transfer") {
+    if (!venue) return;
+    try {
+      const payment = await api<{ id: string }>(`/table-sessions/${session.id}/payments`, {
+        body: { method },
+      });
+      await api(`/payments/${payment.id}/confirm-cash`, { method: "POST" });
+      await reload(venue);
+    } catch (err) {
+      showError(err);
+    }
+  }
+
   useEffect(() => {
     if (venue) reload(venue).catch(showError);
   }, [venue, reload]);
@@ -224,12 +237,26 @@ export default function TablesPage() {
                       {session.orderCount} order ·{" "}
                       <b>{new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(session.totalMinor)}</b>
                     </p>
-                    <button
-                      onClick={() => closeSession(session)}
-                      className="mt-2 w-full rounded-lg border border-red-300 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50"
-                    >
-                      Đóng bàn
-                    </button>
+                    <div className="mt-2 flex gap-1">
+                      <button
+                        onClick={() => collectPayment(session, "cash")}
+                        className="flex-1 rounded-lg bg-green-600 py-1.5 text-xs font-semibold text-white hover:bg-green-700"
+                      >
+                        Thu tiền mặt
+                      </button>
+                      <button
+                        onClick={() => collectPayment(session, "bank_transfer")}
+                        className="flex-1 rounded-lg bg-blue-600 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
+                      >
+                        Thu CK
+                      </button>
+                      <button
+                        onClick={() => closeSession(session)}
+                        className="flex-1 rounded-lg border border-red-300 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50"
+                      >
+                        Đóng bàn
+                      </button>
+                    </div>
                   </li>
                 );
               })}

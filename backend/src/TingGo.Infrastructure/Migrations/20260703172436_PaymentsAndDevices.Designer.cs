@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using TingGo.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using TingGo.Infrastructure.Persistence;
 namespace TingGo.Infrastructure.Migrations
 {
     [DbContext(typeof(TingGoDbContext))]
-    partial class TingGoDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260703172436_PaymentsAndDevices")]
+    partial class PaymentsAndDevices
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

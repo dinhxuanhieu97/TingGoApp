@@ -1,7 +1,10 @@
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using TingGo.Modules.Payments.Endpoints;
+using TingGo.Modules.Payments.Persistence;
 using TingGo.SharedKernel.Modules;
+using TingGo.SharedKernel.Persistence;
 
 namespace TingGo.Modules.Payments;
 
@@ -11,13 +14,13 @@ public sealed class PaymentsModule : IModule
 
     public IServiceCollection AddModule(IServiceCollection services, IConfiguration configuration)
     {
-        // Đăng ký service của module (bổ sung theo sprint).
+        services.AddSingleton<IModuleEntityConfigurator, PaymentsEntityConfigurator>();
         return services;
     }
 
     public IEndpointRouteBuilder MapEndpoints(IEndpointRouteBuilder endpoints)
     {
-        // Map endpoint của module dưới /api/v1 (bổ sung theo sprint).
+        PaymentEndpoints.Map(endpoints);
         return endpoints;
     }
 }

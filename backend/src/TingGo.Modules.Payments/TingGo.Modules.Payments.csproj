@@ -4,5 +4,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\TingGo.SharedKernel\TingGo.SharedKernel.csproj" />
+    <ProjectReference Include="..\TingGo.Infrastructure\TingGo.Infrastructure.csproj" />
   </ItemGroup>
 </Project>

@@ -18,6 +18,7 @@ public sealed class OrderingModule : IModule
         services.AddSingleton<IModuleEntityConfigurator, OrderingEntityConfigurator>();
         services.AddSingleton<SessionTokenService>();
         services.AddScoped<OrderService>();
+        services.AddScoped<TingGo.SharedKernel.Contracts.ITableSessionReader, TableSessionReader>();
         return services;
     }
 
