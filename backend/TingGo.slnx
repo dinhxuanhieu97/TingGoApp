@@ -1,0 +1,17 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/TingGo.Api/TingGo.Api.csproj" />
+    <Project Path="src/TingGo.SharedKernel/TingGo.SharedKernel.csproj" />
+    <Project Path="src/TingGo.Infrastructure/TingGo.Infrastructure.csproj" />
+    <Project Path="src/TingGo.Modules.Identity/TingGo.Modules.Identity.csproj" />
+    <Project Path="src/TingGo.Modules.Venues/TingGo.Modules.Venues.csproj" />
+    <Project Path="src/TingGo.Modules.Catalog/TingGo.Modules.Catalog.csproj" />
+    <Project Path="src/TingGo.Modules.Ordering/TingGo.Modules.Ordering.csproj" />
+    <Project Path="src/TingGo.Modules.Payments/TingGo.Modules.Payments.csproj" />
+    <Project Path="src/TingGo.Modules.Notifications/TingGo.Modules.Notifications.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/TingGo.UnitTests/TingGo.UnitTests.csproj" />
+    <Project Path="tests/TingGo.IntegrationTests/TingGo.IntegrationTests.csproj" />
+  </Folder>
+</Solution>

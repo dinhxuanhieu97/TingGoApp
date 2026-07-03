@@ -1,0 +1,27 @@
+# .NET
+bin/
+obj/
+*.user
+.vs/
+
+# Node
+node_modules/
+.next/
+dist/
+*.tsbuildinfo
+
+# React Native
+apps/merchant-mobile/android/app/build/
+apps/merchant-mobile/ios/Pods/
+apps/merchant-mobile/ios/build/
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+appsettings.*.local.json
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/

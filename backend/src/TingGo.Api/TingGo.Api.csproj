@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.*" />
+    <!-- Pin transitive: 2.0.0 dính GHSA-v5pm-xwqc-g5wc -->
+    <PackageReference Include="Microsoft.OpenApi" Version="2.9.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.*">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\TingGo.SharedKernel\TingGo.SharedKernel.csproj" />
+    <ProjectReference Include="..\TingGo.Infrastructure\TingGo.Infrastructure.csproj" />
+    <ProjectReference Include="..\TingGo.Modules.Identity\TingGo.Modules.Identity.csproj" />
+    <ProjectReference Include="..\TingGo.Modules.Venues\TingGo.Modules.Venues.csproj" />
+    <ProjectReference Include="..\TingGo.Modules.Catalog\TingGo.Modules.Catalog.csproj" />
+    <ProjectReference Include="..\TingGo.Modules.Ordering\TingGo.Modules.Ordering.csproj" />
+    <ProjectReference Include="..\TingGo.Modules.Payments\TingGo.Modules.Payments.csproj" />
+    <ProjectReference Include="..\TingGo.Modules.Notifications\TingGo.Modules.Notifications.csproj" />
+  </ItemGroup>
+</Project>
