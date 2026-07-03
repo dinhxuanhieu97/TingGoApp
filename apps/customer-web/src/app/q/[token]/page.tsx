@@ -1,6 +1,7 @@
 "use client";
 
-import { use, useEffect, useMemo, useState } from "react";
+import { use, useEffect, useMemo, useRef, useState } from "react";
+import { HubConnectionBuilder, LogLevel } from "@microsoft/signalr";
 import { publicApi, ApiError, formatMoney, API_ORIGIN } from "@/lib/api";
 import type {
   CartItem,
@@ -66,7 +67,8 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
     })();
   }, [token]);
 
-  // CUS-06: polling trạng thái order 5s (SignalR thay thế ở Sprint 6)
+  // CUS-06: SignalR real-time + polling 30s dự phòng khi mạng yếu
+  const seenEventIds = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (!sessionToken) return;
     let active = true;
@@ -81,10 +83,38 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
       }
     };
     load();
-    const timer = setInterval(load, 5000);
+    const fallback = setInterval(load, 30000);
+
+    const connection = new HubConnectionBuilder()
+      .withUrl(`${API_ORIGIN}/hubs/orders`)
+      .withAutomaticReconnect()
+      .configureLogging(LogLevel.Warning)
+      .build();
+    for (const eventType of [
+      "order.created", "order.confirmed", "order.rejected",
+      "order.preparing", "order.ready", "order.completed", "order.cancelled",
+    ]) {
+      connection.on(eventType, (payload: { eventId?: string }) => {
+        if (payload.eventId) {
+          if (seenEventIds.current.has(payload.eventId)) return;
+          seenEventIds.current.add(payload.eventId);
+        }
+        load();
+      });
+    }
+    connection
+      .start()
+      .then(() => connection.invoke("JoinTableSession", sessionToken))
+      .catch(() => {/* fallback polling vẫn chạy */});
+    connection.onreconnected(() => {
+      connection.invoke("JoinTableSession", sessionToken).catch(() => {});
+      load();
+    });
+
     return () => {
       active = false;
-      clearInterval(timer);
+      clearInterval(fallback);
+      connection.stop();
     };
   }, [sessionToken]);
 

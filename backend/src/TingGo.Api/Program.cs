@@ -37,6 +37,20 @@ builder.Services
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
             ClockSkew = TimeSpan.FromSeconds(30),
         };
+        // SignalR websocket không gửi được header — nhận access_token qua query cho /hubs
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                if (!string.IsNullOrEmpty(accessToken)
+                    && context.HttpContext.Request.Path.StartsWithSegments("/hubs"))
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            },
+        };
     });
 builder.Services.AddAuthorization();
 
@@ -45,13 +59,18 @@ builder.Services.AddCors(options => options.AddPolicy("web", policy => policy
     .WithOrigins(builder.Configuration.GetSection("Cors:Origins").Get<string[]>()
         ?? ["http://localhost:3000", "http://localhost:3001"])
     .AllowAnyHeader()
-    .AllowAnyMethod()));
+    .AllowAnyMethod()
+    .AllowCredentials())); // SignalR negotiate gửi credentials
 
 // --- Cross-cutting ---
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
-builder.Services.AddSignalR();
+builder.Services.AddSignalR()
+    .AddStackExchangeRedis(builder.Configuration.GetConnectionString("Redis") ?? "localhost:6379",
+        options => options.Configuration.ChannelPrefix =
+            StackExchange.Redis.RedisChannel.Literal("tinggo-signalr")); // backplane (PRD Sprint 6)
+builder.Services.AddHostedService<TingGo.Api.Workers.OutboxWorker>();
 
 builder.Services.AddHealthChecks()
     .AddCheck<PostgresHealthCheck>("postgres")

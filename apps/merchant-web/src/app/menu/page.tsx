@@ -145,6 +145,9 @@ export default function MenuPage() {
             <a href="/tables" className="text-gray-500 hover:text-orange-600">
               Bàn & QR
             </a>
+            <a href="/orders" className="text-gray-500 hover:text-orange-600">
+              Order
+            </a>
           </nav>
           {venues.length > 0 && (
             <select

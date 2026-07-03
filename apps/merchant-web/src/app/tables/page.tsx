@@ -137,6 +137,9 @@ export default function TablesPage() {
               Menu
             </a>
             <span className="font-semibold text-orange-600">Bàn & QR</span>
+            <a href="/orders" className="text-gray-500 hover:text-orange-600">
+              Order
+            </a>
           </nav>
         </div>
         <span className="text-sm text-gray-500">{venue?.name}</span>

@@ -1,22 +1,33 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.SignalR;
+using TingGo.SharedKernel.Contracts;
 
 namespace TingGo.Api.Hubs;
 
 /// <summary>
 /// Hub real-time /hubs/orders (PRD mục 8).
-/// Group theo venue cho merchant, theo table session cho khách.
-/// Sprint 6: outbox worker sẽ phát các sự kiện order.*, service_request.*, payment.*.
+/// Merchant join group venue (yêu cầu JWT + membership); khách join group session (token là bí mật).
 /// </summary>
-public sealed class OrderHub : Hub
+public sealed class OrderHub(IVenueDirectory venues, IMembershipService memberships) : Hub
 {
-    private static string VenueGroup(string venueId) => $"venue:{venueId}";
+    private static string VenueGroup(Guid venueId) => $"venue:{venueId}";
     private static string SessionGroup(string token) => $"session:{token}";
 
-    public Task JoinVenue(string venueId)
-        => Groups.AddToGroupAsync(Context.ConnectionId, VenueGroup(venueId));
-        // TODO Sprint 6: xác thực membership trước khi join.
+    public async Task JoinVenue(Guid venueId)
+    {
+        var sub = Context.User?.FindFirstValue(ClaimTypes.NameIdentifier)
+                  ?? Context.User?.FindFirstValue("sub")
+                  ?? throw new HubException("UNAUTHORIZED: cần đăng nhập để theo dõi quán.");
 
-    public Task LeaveVenue(string venueId)
+        var organizationId = await venues.GetOrganizationIdAsync(venueId)
+            ?? throw new HubException("NOT_FOUND: quán không tồn tại.");
+        var role = await memberships.GetOrganizationRoleAsync(Guid.Parse(sub), organizationId)
+            ?? throw new HubException("FORBIDDEN: bạn không thuộc quán này.");
+
+        await Groups.AddToGroupAsync(Context.ConnectionId, VenueGroup(venueId));
+    }
+
+    public Task LeaveVenue(Guid venueId)
         => Groups.RemoveFromGroupAsync(Context.ConnectionId, VenueGroup(venueId));
 
     public Task JoinTableSession(string publicSessionToken)
