@@ -1,7 +1,11 @@
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using TingGo.Modules.Catalog.Endpoints;
+using TingGo.Modules.Catalog.Persistence;
+using TingGo.Modules.Catalog.Services;
 using TingGo.SharedKernel.Modules;
+using TingGo.SharedKernel.Persistence;
 
 namespace TingGo.Modules.Catalog;
 
@@ -11,13 +15,18 @@ public sealed class CatalogModule : IModule
 
     public IServiceCollection AddModule(IServiceCollection services, IConfiguration configuration)
     {
-        // Đăng ký service của module (bổ sung theo sprint).
+        services.AddSingleton<IModuleEntityConfigurator, CatalogEntityConfigurator>();
+        services.AddScoped<CatalogGuard>();
+        services.AddSingleton<IImageStorage, LocalImageStorage>();
         return services;
     }
 
     public IEndpointRouteBuilder MapEndpoints(IEndpointRouteBuilder endpoints)
     {
-        // Map endpoint của module dưới /api/v1 (bổ sung theo sprint).
+        MenuEndpoints.Map(endpoints);
+        ProductEndpoints.Map(endpoints);
+        ModifierEndpoints.Map(endpoints);
+        FileEndpoints.Map(endpoints);
         return endpoints;
     }
 }

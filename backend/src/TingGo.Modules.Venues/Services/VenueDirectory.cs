@@ -15,4 +15,10 @@ public sealed class VenueDirectory(TingGoDbContext db) : IVenueDirectory
             .FirstOrDefaultAsync(ct);
         return orgId;
     }
+
+    public Task<VenueInfo?> GetVenueInfoAsync(Guid venueId, CancellationToken ct = default)
+        => db.Set<Venue>().AsNoTracking()
+            .Where(x => x.Id == venueId)
+            .Select(x => new VenueInfo(x.Id, x.OrganizationId, x.CurrencyCode, x.DefaultLocale, x.Timezone, x.Status))
+            .FirstOrDefaultAsync(ct)!;
 }

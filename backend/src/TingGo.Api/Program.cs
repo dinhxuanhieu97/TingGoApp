@@ -67,6 +67,15 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi(); // /openapi/v1.json
 }
 
+// Serve ảnh menu local (dev). Production: S3 + CloudFront (ADR-002).
+var imagePath = Path.GetFullPath(builder.Configuration["ImageStorage:LocalPath"] ?? "uploads/images");
+Directory.CreateDirectory(imagePath);
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(imagePath),
+    RequestPath = "/files/images",
+});
+
 app.MapHealthChecks("/health");
 app.MapGet("/api/v1/ping", () => Results.Ok(new { status = "ok", serverTimeUtc = DateTimeOffset.UtcNow }));
 
