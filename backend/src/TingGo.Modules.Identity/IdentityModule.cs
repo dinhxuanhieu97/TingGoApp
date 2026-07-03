@@ -20,6 +20,8 @@ namespace TingGo.Modules.Identity;
 public sealed record OtpRequestDto(string Email);
 public sealed record OtpVerifyDto(string Email, string Code, string? DeviceName);
 public sealed record RefreshDto(string RefreshToken);
+public sealed record StaffLoginDto(Guid VenueId, string StaffCode, string Pin, string? DeviceName);
+public sealed record CreateStaffDto(string DisplayName, string Role, string? StaffCode, string Pin);
 
 public sealed class IdentityModule : IModule
 {
@@ -31,6 +33,7 @@ public sealed class IdentityModule : IModule
         services.AddSingleton<JwtTokenService>();
         services.AddScoped<IEmailSender, SmtpEmailSender>();
         services.AddScoped<AuthService>();
+        services.AddScoped<StaffService>();
         services.AddScoped<IMembershipService, MembershipService>();
         return services;
     }
@@ -48,6 +51,12 @@ public sealed class IdentityModule : IModule
         auth.MapPost("/otp/verify", async (OtpVerifyDto dto, AuthService service, CancellationToken ct) =>
         {
             var tokens = await service.VerifyOtpAsync(dto.Email, dto.Code, dto.DeviceName, ct);
+            return Results.Ok(tokens);
+        });
+
+        auth.MapPost("/staff/login", async (StaffLoginDto dto, AuthService service, CancellationToken ct) =>
+        {
+            var tokens = await service.StaffLoginAsync(dto.VenueId, dto.StaffCode, dto.Pin, dto.DeviceName, ct);
             return Results.Ok(tokens);
         });
 
@@ -83,6 +92,23 @@ public sealed class IdentityModule : IModule
                 .Where(x => x.UserId == GetUserId(principal) && x.Status == MembershipStatus.Active)
                 .Select(x => new { x.Id, x.OrganizationId, x.VenueId, x.Role })
                 .ToListAsync(ct);
+            return Results.Ok(items);
+        }).RequireAuthorization();
+
+        // MER-07 (phần Sprint 2): tạo và xem nhân viên để staff login dùng được.
+        endpoints.MapPost("/venues/{venueId:guid}/staff", async (
+            Guid venueId, CreateStaffDto dto, ClaimsPrincipal principal,
+            StaffService service, CancellationToken ct) =>
+        {
+            var created = await service.CreateStaffAsync(
+                GetUserId(principal), venueId, dto.DisplayName, dto.Role, dto.StaffCode, dto.Pin, ct);
+            return Results.Created($"/api/v1/venues/{venueId}/staff/{created.MembershipId}", created);
+        }).RequireAuthorization();
+
+        endpoints.MapGet("/venues/{venueId:guid}/staff", async (
+            Guid venueId, ClaimsPrincipal principal, StaffService service, CancellationToken ct) =>
+        {
+            var items = await service.ListStaffAsync(GetUserId(principal), venueId, ct);
             return Results.Ok(items);
         }).RequireAuthorization();
 

@@ -88,6 +88,32 @@ public sealed class AuthService(
         return tokens;
     }
 
+    public async Task<AuthTokens> StaffLoginAsync(
+        Guid venueId, string staffCode, string pin, string? deviceName, CancellationToken ct)
+    {
+        var membership = await db.Set<Membership>()
+            .FirstOrDefaultAsync(x => x.VenueId == venueId
+                                      && x.StaffCode == staffCode.Trim().ToUpperInvariant()
+                                      && x.Status == MembershipStatus.Active, ct);
+
+        // Thông báo chung — không tiết lộ staff code có tồn tại hay không.
+        if (membership?.PinHash is null || !PinHashing.Verify(pin, membership.PinHash))
+        {
+            throw new ApiException(ErrorCodes.AuthStaffLoginInvalid,
+                "Mã nhân viên hoặc PIN không đúng.", 401);
+        }
+
+        var user = await db.Set<User>().FirstAsync(x => x.Id == membership.UserId, ct);
+        if (user.Status == UserStatus.Blocked)
+        {
+            throw new ApiException(ErrorCodes.Forbidden, "Tài khoản đã bị khóa.", 403);
+        }
+
+        var tokens = CreateSession(user, deviceName);
+        await db.SaveChangesAsync(ct);
+        return tokens;
+    }
+
     public async Task<AuthTokens> RefreshAsync(string refreshToken, CancellationToken ct)
     {
         var hash = TokenHashing.Sha256(refreshToken);

@@ -70,6 +70,8 @@ public sealed class IdentityEntityConfigurator : IModuleEntityConfigurator
             e.Property(x => x.UpdatedAt).HasColumnName("updated_at");
             e.HasIndex(x => new { x.UserId, x.VenueId });
             e.HasIndex(x => new { x.VenueId, x.Status });
+            e.HasIndex(x => new { x.VenueId, x.StaffCode }).IsUnique()
+                .HasFilter("staff_code IS NOT NULL");
         });
     }
 }

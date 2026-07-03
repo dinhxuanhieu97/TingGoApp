@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using TingGo.Infrastructure.Persistence;
 using TingGo.Modules.Venues.Domain;
 using TingGo.Modules.Venues.Persistence;
+using TingGo.Modules.Venues.Services;
 using TingGo.SharedKernel.Contracts;
 using TingGo.SharedKernel.Errors;
 using TingGo.SharedKernel.Modules;
@@ -19,6 +20,11 @@ public sealed record CreateOrganizationDto(string Name, string? DefaultLocale, s
 public sealed record CreateVenueDto(
     string Name, string? Slug, string? CountryCode, string? Timezone,
     string? DefaultLocale, string? CurrencyCode);
+public sealed record UpdateOrganizationDto(string? Name, string? DefaultLocale, string? DefaultCurrency);
+public sealed record UpdateVenueDto(
+    string? Name, string? Timezone, string? DefaultLocale, string? CurrencyCode,
+    string? WifiName, long RowVersion);
+public sealed record UpdateVenueStatusDto(string Status, long RowVersion);
 
 public sealed class VenuesModule : IModule
 {
@@ -27,6 +33,7 @@ public sealed class VenuesModule : IModule
     public IServiceCollection AddModule(IServiceCollection services, IConfiguration configuration)
     {
         services.AddSingleton<IModuleEntityConfigurator, VenuesEntityConfigurator>();
+        services.AddScoped<IVenueDirectory, VenueDirectory>();
         return services;
     }
 
@@ -116,7 +123,103 @@ public sealed class VenuesModule : IModule
             return Results.Ok(ToDto(venue));
         }).RequireAuthorization();
 
+        endpoints.MapPatch("/organizations/{id:guid}", async (
+            Guid id, UpdateOrganizationDto dto, ClaimsPrincipal principal, TingGoDbContext db,
+            IMembershipService memberships, CancellationToken ct) =>
+        {
+            var role = await EnsureMemberAsync(memberships, principal, id, ct);
+            if (role != "owner")
+            {
+                throw new ApiException(ErrorCodes.Forbidden, "Chỉ owner được sửa tổ chức.", 403);
+            }
+
+            var org = await db.Set<Organization>().FirstOrDefaultAsync(x => x.Id == id, ct)
+                ?? throw new ApiException(ErrorCodes.NotFound, "Không tìm thấy tổ chức.", 404);
+
+            if (dto.Name is not null)
+            {
+                if (string.IsNullOrWhiteSpace(dto.Name) || dto.Name.Length > 200)
+                {
+                    throw new ApiException(ErrorCodes.ValidationFailed, "Tên tổ chức không hợp lệ.", 400);
+                }
+                org.Name = dto.Name.Trim();
+            }
+            org.DefaultLocale = dto.DefaultLocale ?? org.DefaultLocale;
+            org.DefaultCurrency = dto.DefaultCurrency ?? org.DefaultCurrency;
+            org.UpdatedAt = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(ToDto(org));
+        }).RequireAuthorization();
+
+        endpoints.MapPatch("/venues/{venueId:guid}", async (
+            Guid venueId, UpdateVenueDto dto, ClaimsPrincipal principal, TingGoDbContext db,
+            IMembershipService memberships, CancellationToken ct) =>
+        {
+            var venue = await LoadVenueForManagerAsync(db, memberships, principal, venueId, dto.RowVersion, ct);
+
+            if (dto.Name is not null)
+            {
+                if (string.IsNullOrWhiteSpace(dto.Name) || dto.Name.Length > 200)
+                {
+                    throw new ApiException(ErrorCodes.ValidationFailed, "Tên quán không hợp lệ.", 400);
+                }
+                venue.Name = dto.Name.Trim();
+            }
+            venue.Timezone = dto.Timezone ?? venue.Timezone;
+            venue.DefaultLocale = dto.DefaultLocale ?? venue.DefaultLocale;
+            venue.CurrencyCode = dto.CurrencyCode ?? venue.CurrencyCode;
+            venue.WifiName = dto.WifiName ?? venue.WifiName;
+            Touch(venue);
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(ToDto(venue));
+        }).RequireAuthorization();
+
+        endpoints.MapPatch("/venues/{venueId:guid}/status", async (
+            Guid venueId, UpdateVenueStatusDto dto, ClaimsPrincipal principal, TingGoDbContext db,
+            IMembershipService memberships, CancellationToken ct) =>
+        {
+            if (dto.Status is not ("active" or "inactive"))
+            {
+                throw new ApiException(ErrorCodes.ValidationFailed, "Status phải là active hoặc inactive.", 400);
+            }
+            var venue = await LoadVenueForManagerAsync(db, memberships, principal, venueId, dto.RowVersion, ct);
+            venue.Status = dto.Status;
+            Touch(venue);
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(ToDto(venue));
+        }).RequireAuthorization();
+
         return endpoints;
+    }
+
+    /// <summary>Load venue + check quyền owner/manager + optimistic concurrency theo rowVersion.</summary>
+    private static async Task<Venue> LoadVenueForManagerAsync(
+        TingGoDbContext db, IMembershipService memberships, ClaimsPrincipal principal,
+        Guid venueId, long rowVersion, CancellationToken ct)
+    {
+        var venue = await db.Set<Venue>().FirstOrDefaultAsync(x => x.Id == venueId, ct)
+            ?? throw new ApiException(ErrorCodes.NotFound, "Không tìm thấy quán.", 404);
+
+        var role = await memberships.GetOrganizationRoleAsync(
+            GetUserId(principal), venue.OrganizationId, ct);
+        if (role is not ("owner" or "manager"))
+        {
+            throw new ApiException(ErrorCodes.Forbidden, "Chỉ owner/manager được sửa quán.", 403);
+        }
+
+        if (venue.RowVersion != rowVersion)
+        {
+            throw new ApiException(ErrorCodes.Conflict,
+                "Dữ liệu quán đã thay đổi. Hãy tải lại và thử lại.", 409,
+                new Dictionary<string, object?> { ["currentRowVersion"] = venue.RowVersion });
+        }
+        return venue;
+    }
+
+    private static void Touch(Venue venue)
+    {
+        venue.RowVersion++;
+        venue.UpdatedAt = DateTimeOffset.UtcNow;
     }
 
     /// <summary>Tenant isolation: user phải có membership active trong organization.</summary>

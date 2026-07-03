@@ -19,6 +19,7 @@ public static class ErrorCodes
     public const string AuthOtpExpired = "AUTH_OTP_EXPIRED";
     public const string AuthOtpInvalid = "AUTH_OTP_INVALID";
     public const string AuthTokenInvalid = "AUTH_TOKEN_INVALID";
+    public const string AuthStaffLoginInvalid = "AUTH_STAFF_LOGIN_INVALID";
 
     // Order (Sprint 5)
     public const string OrderInvalidStatus = "ORDER_INVALID_STATUS";
