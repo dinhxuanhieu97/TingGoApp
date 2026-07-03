@@ -201,6 +201,7 @@ export default function OrdersPage() {
             <a href="/menu" className="text-gray-500 hover:text-orange-600">Menu</a>
             <a href="/tables" className="text-gray-500 hover:text-orange-600">Bàn & QR</a>
             <span className="font-semibold text-orange-600">Order</span>
+            <a href="/reports" className="text-gray-500 hover:text-orange-600">Báo cáo</a>
           </nav>
         </div>
         <div className="flex items-center gap-3 text-sm">

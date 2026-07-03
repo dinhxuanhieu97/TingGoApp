@@ -62,6 +62,38 @@ builder.Services.AddCors(options => options.AddPolicy("web", policy => policy
     .AllowAnyMethod()
     .AllowCredentials())); // SignalR negotiate gửi credentials
 
+// --- Rate limiting (PRD 5.3) — giới hạn theo IP cho public/auth, cấu hình qua appsettings ---
+var publicLimit = builder.Configuration.GetValue("RateLimit:PublicPerMinute", 300);
+var authLimit = builder.Configuration.GetValue("RateLimit:AuthPerMinute", 60);
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = 429;
+    options.GlobalLimiter = System.Threading.RateLimiting.PartitionedRateLimiter.Create<HttpContext, string>(context =>
+    {
+        var path = context.Request.Path;
+        var ip = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        if (path.StartsWithSegments("/api/v1/auth"))
+        {
+            return System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter($"auth:{ip}",
+                _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = authLimit,
+                    Window = TimeSpan.FromMinutes(1),
+                });
+        }
+        if (path.StartsWithSegments("/api/v1/public"))
+        {
+            return System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter($"public:{ip}",
+                _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = publicLimit,
+                    Window = TimeSpan.FromMinutes(1),
+                });
+        }
+        return System.Threading.RateLimiting.RateLimitPartition.GetNoLimiter("none");
+    });
+});
+
 // --- Cross-cutting ---
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 builder.Services.AddProblemDetails();
@@ -89,6 +121,7 @@ foreach (var module in ModuleRegistry.Modules)
 var app = builder.Build();
 
 app.UseExceptionHandler();
+app.UseRateLimiter();
 app.UseCors("web");
 app.UseAuthentication();
 app.UseAuthorization();
@@ -117,6 +150,7 @@ foreach (var module in ModuleRegistry.Modules)
 {
     module.MapEndpoints(apiV1);
 }
+TingGo.Api.Endpoints.ReportEndpoints.Map(apiV1);
 
 app.Run();
 
