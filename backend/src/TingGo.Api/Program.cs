@@ -40,6 +40,13 @@ builder.Services
     });
 builder.Services.AddAuthorization();
 
+// --- CORS cho web dev (Next.js localhost:3000/3001) ---
+builder.Services.AddCors(options => options.AddPolicy("web", policy => policy
+    .WithOrigins(builder.Configuration.GetSection("Cors:Origins").Get<string[]>()
+        ?? ["http://localhost:3000", "http://localhost:3001"])
+    .AllowAnyHeader()
+    .AllowAnyMethod()));
+
 // --- Cross-cutting ---
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 builder.Services.AddProblemDetails();
@@ -59,6 +66,7 @@ foreach (var module in ModuleRegistry.Modules)
 var app = builder.Build();
 
 app.UseExceptionHandler();
+app.UseCors("web");
 app.UseAuthentication();
 app.UseAuthorization();
 

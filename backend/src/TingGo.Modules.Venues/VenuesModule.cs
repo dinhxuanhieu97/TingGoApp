@@ -77,6 +77,18 @@ public sealed class VenuesModule : IModule
             return Results.Ok(ToDto(org));
         }).RequireAuthorization();
 
+        endpoints.MapGet("/organizations/{id:guid}/venues", async (
+            Guid id, ClaimsPrincipal principal, TingGoDbContext db,
+            IMembershipService memberships, CancellationToken ct) =>
+        {
+            await EnsureMemberAsync(memberships, principal, id, ct);
+            var items = await db.Set<Venue>().AsNoTracking()
+                .Where(x => x.OrganizationId == id)
+                .OrderBy(x => x.CreatedAt)
+                .ToListAsync(ct);
+            return Results.Ok(items.Select(ToDto));
+        }).RequireAuthorization();
+
         endpoints.MapPost("/organizations/{id:guid}/venues", async (
             Guid id, CreateVenueDto dto, ClaimsPrincipal principal, TingGoDbContext db,
             IMembershipService memberships, CancellationToken ct) =>
