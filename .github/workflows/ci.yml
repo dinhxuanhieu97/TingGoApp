@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: tinggo
+          POSTGRES_PASSWORD: tinggo_dev
+          POSTGRES_DB: tinggo
+        ports: ["5433:5432"]
+        options: >-
+          --health-cmd "pg_isready -U tinggo"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - name: Build
+        run: dotnet build backend/TingGo.slnx
+      - name: Apply migrations
+        run: |
+          dotnet tool install -g dotnet-ef
+          dotnet ef database update --project backend/src/TingGo.Infrastructure --startup-project backend/src/TingGo.Api
+      - name: Test
+        run: dotnet test backend/TingGo.slnx --no-build
+
+  web:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app: [customer-web, merchant-web]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Build ${{ matrix.app }}
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          npm ci --include=dev || npm install --include=dev
+          npx next build
