@@ -27,6 +27,7 @@ public sealed class CatalogModule : IModule
         ProductEndpoints.Map(endpoints);
         ModifierEndpoints.Map(endpoints);
         FileEndpoints.Map(endpoints);
+        PublicMenuEndpoints.Map(endpoints);
         return endpoints;
     }
 }

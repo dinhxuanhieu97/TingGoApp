@@ -135,6 +135,9 @@ public sealed class VenuesModule : IModule
             return Results.Ok(ToDto(venue));
         }).RequireAuthorization();
 
+        Endpoints.TableEndpoints.Map(endpoints);
+        Endpoints.PublicQrEndpoints.Map(endpoints);
+
         endpoints.MapPatch("/organizations/{id:guid}", async (
             Guid id, UpdateOrganizationDto dto, ClaimsPrincipal principal, TingGoDbContext db,
             IMembershipService memberships, CancellationToken ct) =>

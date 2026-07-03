@@ -140,6 +140,12 @@ export default function MenuPage() {
       <header className="flex items-center justify-between border-b bg-white px-6 py-3">
         <div className="flex items-center gap-4">
           <span className="text-xl font-bold text-orange-600">TingGo</span>
+          <nav className="flex gap-3 text-sm">
+            <span className="font-semibold text-orange-600">Menu</span>
+            <a href="/tables" className="text-gray-500 hover:text-orange-600">
+              Bàn & QR
+            </a>
+          </nav>
           {venues.length > 0 && (
             <select
               value={venue?.id ?? ""}

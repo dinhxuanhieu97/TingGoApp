@@ -42,5 +42,45 @@ public sealed class VenuesEntityConfigurator : IModuleEntityConfigurator
             e.HasIndex(x => x.Slug).IsUnique();
             e.HasIndex(x => x.OrganizationId);
         });
+
+        b.Entity<VenueArea>(e =>
+        {
+            e.ToTable("venue_areas");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasColumnName("id");
+            e.Property(x => x.VenueId).HasColumnName("venue_id");
+            e.Property(x => x.Name).HasColumnName("name").HasMaxLength(100);
+            e.Property(x => x.SortOrder).HasColumnName("sort_order");
+            e.HasIndex(x => x.VenueId);
+        });
+
+        b.Entity<DiningTable>(e =>
+        {
+            e.ToTable("dining_tables");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasColumnName("id");
+            e.Property(x => x.VenueId).HasColumnName("venue_id");
+            e.Property(x => x.AreaId).HasColumnName("area_id");
+            e.Property(x => x.Code).HasColumnName("code").HasMaxLength(32);
+            e.Property(x => x.Name).HasColumnName("name").HasMaxLength(100);
+            e.Property(x => x.Status).HasColumnName("status").HasMaxLength(32);
+            e.Property(x => x.CreatedAt).HasColumnName("created_at");
+            e.HasIndex(x => new { x.VenueId, x.Code }).IsUnique();
+            e.HasIndex(x => x.AreaId);
+        });
+
+        b.Entity<QrCode>(e =>
+        {
+            e.ToTable("qr_codes");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasColumnName("id");
+            e.Property(x => x.TableId).HasColumnName("table_id");
+            e.Property(x => x.TokenHash).HasColumnName("token_hash").HasMaxLength(128);
+            e.Property(x => x.Status).HasColumnName("status").HasMaxLength(32);
+            e.Property(x => x.ExpiresAt).HasColumnName("expires_at");
+            e.Property(x => x.CreatedAt).HasColumnName("created_at");
+            e.HasIndex(x => x.TokenHash).IsUnique();
+            e.HasIndex(x => x.TableId);
+        });
     }
 }
