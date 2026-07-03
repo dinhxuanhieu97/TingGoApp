@@ -118,6 +118,20 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
     };
   }, [sessionToken]);
 
+  const [serviceNotice, setServiceNotice] = useState("");
+  async function callStaff(type: "call_staff" | "payment") {
+    if (!sessionToken) return;
+    try {
+      await publicApi("/public/service-requests", {
+        body: { sessionToken, type },
+      });
+      setServiceNotice(type === "payment" ? "Đã gửi yêu cầu thanh toán 💰" : "Đã gọi nhân viên 🔔");
+      setTimeout(() => setServiceNotice(""), 4000);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Không gửi được yêu cầu.");
+    }
+  }
+
   async function submitOrder() {
     if (!sessionToken || cart.length === 0 || submitting) return;
     setSubmitting(true);
@@ -191,11 +205,32 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
   return (
     <main className="min-h-screen bg-orange-50 pb-24">
       <header className="sticky top-0 z-10 bg-white px-4 py-3 shadow-sm">
-        <p className="text-lg font-bold text-orange-600">{context?.venue.name}</p>
-        <p className="text-xs text-gray-500">
-          {context?.area ? `${context.area.name} · ` : ""}Bàn {context?.table.code}
-          {context?.venue.wifiName ? ` · Wi-Fi: ${context.venue.wifiName}` : ""}
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-lg font-bold text-orange-600">{context?.venue.name}</p>
+            <p className="text-xs text-gray-500">
+              {context?.area ? `${context.area.name} · ` : ""}Bàn {context?.table.code}
+              {context?.venue.wifiName ? ` · Wi-Fi: ${context.venue.wifiName}` : ""}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => callStaff("call_staff")}
+              className="rounded-full border border-orange-300 px-3 py-1.5 text-xs font-semibold text-orange-600 hover:bg-orange-50"
+            >
+              🔔 Gọi nhân viên
+            </button>
+            <button
+              onClick={() => callStaff("payment")}
+              className="rounded-full border border-orange-300 px-3 py-1.5 text-xs font-semibold text-orange-600 hover:bg-orange-50"
+            >
+              💰 Thanh toán
+            </button>
+          </div>
+        </div>
+        {serviceNotice && (
+          <p className="mt-1 text-xs font-medium text-green-600">{serviceNotice}</p>
+        )}
       </header>
 
       {error && (

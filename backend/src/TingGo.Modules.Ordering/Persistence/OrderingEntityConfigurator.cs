@@ -82,6 +82,21 @@ public sealed class OrderingEntityConfigurator : IModuleEntityConfigurator
             e.HasIndex(x => x.OrderItemId);
         });
 
+        b.Entity<ServiceRequest>(e =>
+        {
+            e.ToTable("service_requests");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasColumnName("id");
+            e.Property(x => x.VenueId).HasColumnName("venue_id");
+            e.Property(x => x.TableSessionId).HasColumnName("table_session_id");
+            e.Property(x => x.Type).HasColumnName("type").HasMaxLength(32);
+            e.Property(x => x.Note).HasColumnName("note");
+            e.Property(x => x.Status).HasColumnName("status").HasMaxLength(32);
+            e.Property(x => x.RequestedAt).HasColumnName("requested_at");
+            e.Property(x => x.ResolvedAt).HasColumnName("resolved_at");
+            e.HasIndex(x => new { x.VenueId, x.Status });
+        });
+
         b.Entity<OrderStatusHistory>(e =>
         {
             e.ToTable("order_status_history");

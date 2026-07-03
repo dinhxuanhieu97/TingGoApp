@@ -24,6 +24,21 @@ interface ActiveOrder {
   tableId?: string;
 }
 
+interface ServiceRequestItem {
+  id: string;
+  type: string;
+  note?: string;
+  status: string;
+  requestedAt: string;
+  tableId: string;
+}
+
+const SERVICE_TYPE_LABEL: Record<string, string> = {
+  call_staff: "🔔 Gọi nhân viên",
+  supplies: "🥢 Xin thêm đồ",
+  payment: "💰 Thanh toán",
+};
+
 const COLUMNS: { status: string; title: string; actions: { action: string; label: string; danger?: boolean }[] }[] = [
   {
     status: "submitted",
@@ -68,8 +83,14 @@ export default function OrdersPage() {
   const showError = (err: unknown) =>
     setError(err instanceof ApiError ? err.message : "Đã xảy ra lỗi.");
 
+  const [serviceRequests, setServiceRequests] = useState<ServiceRequestItem[]>([]);
+
   const loadOrders = useCallback(async (venueId: string) => {
     setOrders(await api<ActiveOrder[]>(`/venues/${venueId}/orders/active`));
+  }, []);
+
+  const loadServiceRequests = useCallback(async (venueId: string) => {
+    setServiceRequests(await api<ServiceRequestItem[]>(`/venues/${venueId}/service-requests`));
   }, []);
 
   // Khởi tạo: venue + orders + bảng mã bàn
@@ -91,7 +112,7 @@ export default function OrdersPage() {
         setVenue(selected);
         const tables = await api<{ id: string; code: string }[]>(`/venues/${selected.id}/tables`);
         setTableCodes(Object.fromEntries(tables.map((t) => [t.id, t.code])));
-        await loadOrders(selected.id);
+        await Promise.all([loadOrders(selected.id), loadServiceRequests(selected.id)]);
       } catch (err) {
         showError(err);
       }
@@ -124,6 +145,19 @@ export default function OrdersPage() {
         }
         if (eventType === "order.created") beep();
         loadOrders(venue.id).catch(() => {});
+      });
+    }
+    for (const eventType of [
+      "service_request.created", "service_request.acknowledged",
+      "service_request.resolved", "service_request.cancelled",
+    ]) {
+      connection.on(eventType, (payload: { eventId?: string }) => {
+        if (payload.eventId) {
+          if (seenEventIds.current.has(payload.eventId)) return;
+          seenEventIds.current.add(payload.eventId);
+        }
+        if (eventType === "service_request.created") beep();
+        loadServiceRequests(venue.id).catch(() => {});
       });
     }
 
@@ -182,6 +216,48 @@ export default function OrdersPage() {
         <div className="mx-6 mt-4 rounded-lg bg-red-100 px-4 py-2 text-sm text-red-700">
           {error}
           <button onClick={() => setError("")} className="ml-2 font-bold">×</button>
+        </div>
+      )}
+
+      {serviceRequests.length > 0 && (
+        <div className="mx-6 mt-4 rounded-2xl bg-amber-50 p-3 shadow ring-1 ring-amber-200">
+          <h2 className="mb-2 text-sm font-semibold text-amber-800">
+            Yêu cầu từ khách ({serviceRequests.length})
+          </h2>
+          <ul className="flex flex-wrap gap-2">
+            {serviceRequests.map((request) => (
+              <li key={request.id} className="flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm shadow-sm">
+                <span className="font-semibold">Bàn {tableCodes[request.tableId] ?? "?"}</span>
+                <span>{SERVICE_TYPE_LABEL[request.type] ?? request.type}</span>
+                {request.note && <span className="text-xs text-gray-500">“{request.note}”</span>}
+                {request.status === "pending" ? (
+                  <button
+                    onClick={async () => {
+                      try {
+                        await api(`/service-requests/${request.id}/acknowledge`, { method: "POST" });
+                        if (venue) await loadServiceRequests(venue.id);
+                      } catch (err) { showError(err); }
+                    }}
+                    className="rounded-lg bg-amber-500 px-2 py-1 text-xs font-semibold text-white hover:bg-amber-600"
+                  >
+                    Đã nhận
+                  </button>
+                ) : (
+                  <button
+                    onClick={async () => {
+                      try {
+                        await api(`/service-requests/${request.id}/resolve`, { method: "POST" });
+                        if (venue) await loadServiceRequests(venue.id);
+                      } catch (err) { showError(err); }
+                    }}
+                    className="rounded-lg bg-green-600 px-2 py-1 text-xs font-semibold text-white hover:bg-green-700"
+                  >
+                    Xong
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 

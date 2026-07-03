@@ -25,6 +25,21 @@ public sealed class InfrastructureEntityConfigurator : IModuleEntityConfigurator
             e.HasIndex(x => new { x.Status, x.NextAttemptAt });
         });
 
+        b.Entity<AuditLog>(e =>
+        {
+            e.ToTable("audit_logs");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasColumnName("id");
+            e.Property(x => x.VenueId).HasColumnName("venue_id");
+            e.Property(x => x.ActorUserId).HasColumnName("actor_user_id");
+            e.Property(x => x.Action).HasColumnName("action").HasMaxLength(100);
+            e.Property(x => x.EntityType).HasColumnName("entity_type").HasMaxLength(100);
+            e.Property(x => x.EntityId).HasColumnName("entity_id");
+            e.Property(x => x.Detail).HasColumnName("detail");
+            e.Property(x => x.CreatedAt).HasColumnName("created_at");
+            e.HasIndex(x => new { x.VenueId, x.CreatedAt });
+        });
+
         b.Entity<IdempotencyKey>(e =>
         {
             e.ToTable("idempotency_keys");

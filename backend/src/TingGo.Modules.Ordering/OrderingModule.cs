@@ -25,6 +25,8 @@ public sealed class OrderingModule : IModule
     {
         PublicOrderEndpoints.Map(endpoints);
         MerchantOrderEndpoints.Map(endpoints);
+        ServiceRequestEndpoints.Map(endpoints);
+        SessionEndpoints.Map(endpoints);
         return endpoints;
     }
 }

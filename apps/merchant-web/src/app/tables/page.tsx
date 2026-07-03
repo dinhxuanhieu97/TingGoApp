@@ -28,6 +28,16 @@ interface QrInfo {
   dataUrl: string;
 }
 
+interface SessionInfo {
+  id: string;
+  tableId: string;
+  status: string;
+  openedAt: string;
+  rowVersion: number;
+  orderCount: number;
+  totalMinor: number;
+}
+
 export default function TablesPage() {
   const router = useRouter();
   const [venue, setVenue] = useState<Venue | null>(null);
@@ -64,14 +74,29 @@ export default function TablesPage() {
     })();
   }, [router]);
 
+  const [sessions, setSessions] = useState<SessionInfo[]>([]);
+
   const reload = useCallback(async (v: Venue) => {
-    const [areaItems, tableItems] = await Promise.all([
+    const [areaItems, tableItems, sessionItems] = await Promise.all([
       api<Area[]>(`/venues/${v.id}/areas`),
       api<DiningTable[]>(`/venues/${v.id}/tables`),
+      api<SessionInfo[]>(`/venues/${v.id}/table-sessions`),
     ]);
     setAreas(areaItems);
     setTables(tableItems);
+    setSessions(sessionItems);
   }, []);
+
+  async function closeSession(session: SessionInfo) {
+    if (!venue) return;
+    try {
+      await api(`/table-sessions/${session.id}/close`, { body: { rowVersion: session.rowVersion } });
+      await reload(venue);
+    } catch (err) {
+      showError(err);
+      await reload(venue);
+    }
+  }
 
   useEffect(() => {
     if (venue) reload(venue).catch(showError);
@@ -180,6 +205,37 @@ export default function TablesPage() {
             </div>
           )}
         </section>
+
+        {sessions.length > 0 && (
+          <section className="mb-6 rounded-2xl bg-white p-4 shadow">
+            <h2 className="mb-3 font-semibold">Phiên bàn đang mở ({sessions.length})</h2>
+            <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {sessions.map((session) => {
+                const table = tables.find((t) => t.id === session.tableId);
+                return (
+                  <li key={session.id} className="rounded-xl border p-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold">Bàn {table?.code ?? "?"}</span>
+                      <span className="text-xs text-gray-400">
+                        Mở {new Date(session.openedAt).toLocaleTimeString("vi-VN")}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-sm text-gray-600">
+                      {session.orderCount} order ·{" "}
+                      <b>{new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(session.totalMinor)}</b>
+                    </p>
+                    <button
+                      onClick={() => closeSession(session)}
+                      className="mt-2 w-full rounded-lg border border-red-300 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50"
+                    >
+                      Đóng bàn
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
 
         <section className="rounded-2xl bg-white p-4 shadow">
           <h2 className="mb-3 font-semibold">Bàn ({tables.length})</h2>
