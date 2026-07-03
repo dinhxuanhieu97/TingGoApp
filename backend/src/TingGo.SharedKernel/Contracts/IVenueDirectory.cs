@@ -15,4 +15,11 @@ public interface IVenueDirectory
 
     /// <summary>Tra cứu venue theo public slug — null nếu không tồn tại.</summary>
     Task<VenueInfo?> GetVenueBySlugAsync(string slug, CancellationToken ct = default);
+
+    /// <summary>
+    /// Tra cứu bàn từ raw QR token (hash nội bộ). Chỉ trả về khi QR active + bàn active + venue active.
+    /// </summary>
+    Task<TableInfo?> GetActiveTableByQrTokenAsync(string rawQrToken, CancellationToken ct = default);
 }
+
+public sealed record TableInfo(Guid TableId, Guid VenueId, string Code, string Name);

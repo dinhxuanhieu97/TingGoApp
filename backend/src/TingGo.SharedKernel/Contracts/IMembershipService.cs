@@ -10,4 +10,7 @@ public interface IMembershipService
 
     /// <summary>Trả về role của user trong organization (membership active), null nếu không có.</summary>
     Task<string?> GetOrganizationRoleAsync(Guid userId, Guid organizationId, CancellationToken ct = default);
+
+    /// <summary>Trả về (membershipId, role) active của user trong organization, null nếu không có.</summary>
+    Task<(Guid MembershipId, string Role)?> GetMembershipAsync(Guid userId, Guid organizationId, CancellationToken ct = default);
 }

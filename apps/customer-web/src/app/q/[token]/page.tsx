@@ -10,6 +10,28 @@ import type {
 } from "@/lib/types";
 import { cartTotal } from "@/lib/types";
 
+interface SessionOrders {
+  status: string;
+  totalMinor: number;
+  orders: {
+    id: string;
+    orderNumber: string;
+    status: string;
+    totalMinor: number;
+    items: { productName: string; quantity: number }[];
+  }[];
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  submitted: "Đã gửi — chờ quán nhận",
+  confirmed: "Quán đã nhận ✓",
+  preparing: "Đang chuẩn bị 👨‍🍳",
+  ready: "Món đã sẵn sàng 🔔",
+  completed: "Hoàn thành ✓",
+  rejected: "Quán từ chối",
+  cancelled: "Đã hủy",
+};
+
 export default function QrPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params);
   const [context, setContext] = useState<QrContext | null>(null);
@@ -17,6 +39,9 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selected, setSelected] = useState<PublicProduct | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
+  const [sessionOrders, setSessionOrders] = useState<SessionOrders | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -25,7 +50,14 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
       try {
         const qrContext = await publicApi<QrContext>(`/public/q/${token}`);
         setContext(qrContext);
-        setMenu(await publicApi<PublicMenu>(`/public/venues/${qrContext.venue.slug}/menu`));
+        const [menuData, session] = await Promise.all([
+          publicApi<PublicMenu>(`/public/venues/${qrContext.venue.slug}/menu`),
+          publicApi<{ sessionToken: string }>("/public/table-sessions", {
+            body: { qrToken: token },
+          }),
+        ]);
+        setMenu(menuData);
+        setSessionToken(session.sessionToken);
       } catch (err) {
         setError(err instanceof ApiError ? err.message : "Không tải được menu.");
       } finally {
@@ -33,6 +65,59 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
       }
     })();
   }, [token]);
+
+  // CUS-06: polling trạng thái order 5s (SignalR thay thế ở Sprint 6)
+  useEffect(() => {
+    if (!sessionToken) return;
+    let active = true;
+    const load = async () => {
+      try {
+        const data = await publicApi<SessionOrders>(
+          `/public/table-sessions/${sessionToken}/orders`,
+        );
+        if (active) setSessionOrders(data);
+      } catch {
+        /* giữ dữ liệu cũ khi mạng chập chờn */
+      }
+    };
+    load();
+    const timer = setInterval(load, 5000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [sessionToken]);
+
+  async function submitOrder() {
+    if (!sessionToken || cart.length === 0 || submitting) return;
+    setSubmitting(true);
+    try {
+      await publicApi("/public/orders", {
+        headers: { "Idempotency-Key": crypto.randomUUID() },
+        body: {
+          sessionToken,
+          clientOrderId: crypto.randomUUID(),
+          items: cart.map((i) => ({
+            productId: i.productId,
+            variantId: i.variantId ?? null,
+            quantity: i.quantity,
+            note: i.note ?? null,
+            optionIds: i.optionIds,
+          })),
+        },
+      });
+      setCart([]);
+      setCartOpen(false);
+      const data = await publicApi<SessionOrders>(
+        `/public/table-sessions/${sessionToken}/orders`,
+      );
+      setSessionOrders(data);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Gửi order thất bại. Vui lòng thử lại.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   const currency = menu?.venue.currencyCode ?? "VND";
   const itemCount = useMemo(() => cart.reduce((s, i) => s + i.quantity, 0), [cart]);
@@ -82,6 +167,45 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
           {context?.venue.wifiName ? ` · Wi-Fi: ${context.venue.wifiName}` : ""}
         </p>
       </header>
+
+      {error && (
+        <div className="mx-4 mt-3 rounded-lg bg-red-100 px-4 py-2 text-sm text-red-700">
+          {error}
+          <button onClick={() => setError("")} className="ml-2 font-bold">×</button>
+        </div>
+      )}
+
+      {sessionOrders && sessionOrders.orders.length > 0 && (
+        <section className="mx-4 mt-3 rounded-xl bg-white p-3 shadow-sm">
+          <h2 className="mb-2 text-sm font-semibold">Order của bàn</h2>
+          <ul className="space-y-2">
+            {sessionOrders.orders.map((o) => (
+              <li key={o.id} className="flex items-center justify-between text-sm">
+                <div>
+                  <span className="font-medium">{o.orderNumber}</span>
+                  <span className="ml-2 text-xs text-gray-500">
+                    {o.items.map((i) => `${i.productName} ×${i.quantity}`).join(", ")}
+                  </span>
+                </div>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                    o.status === "rejected" || o.status === "cancelled"
+                      ? "bg-red-100 text-red-600"
+                      : o.status === "completed"
+                        ? "bg-green-100 text-green-700"
+                        : "bg-orange-100 text-orange-700"
+                  }`}
+                >
+                  {STATUS_LABEL[o.status] ?? o.status}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 border-t pt-2 text-right text-sm font-semibold">
+            Tổng bàn: {formatMoney(sessionOrders.totalMinor, currency)}
+          </p>
+        </section>
+      )}
 
       <div className="space-y-6 p-4">
         {menu?.categories.map((category) => (
@@ -194,11 +318,11 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
               <span className="text-orange-600">{formatMoney(cartTotal(cart), currency)}</span>
             </div>
             <button
-              disabled
-              className="mt-3 w-full rounded-xl bg-gray-300 py-3 font-semibold text-gray-500"
-              title="Gửi order sẽ mở ở Sprint 5"
+              onClick={submitOrder}
+              disabled={submitting || !sessionToken}
+              className="mt-3 w-full rounded-xl bg-orange-600 py-3 font-semibold text-white disabled:opacity-50"
             >
-              Gửi order (sắp ra mắt)
+              {submitting ? "Đang gửi..." : "Gửi order"}
             </button>
           </div>
         </div>

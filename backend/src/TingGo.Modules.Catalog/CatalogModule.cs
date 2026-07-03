@@ -17,6 +17,7 @@ public sealed class CatalogModule : IModule
     {
         services.AddSingleton<IModuleEntityConfigurator, CatalogEntityConfigurator>();
         services.AddScoped<CatalogGuard>();
+        services.AddScoped<TingGo.SharedKernel.Contracts.ICatalogReader, CatalogReader>();
         services.AddSingleton<IImageStorage, LocalImageStorage>();
         return services;
     }

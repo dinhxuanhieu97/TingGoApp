@@ -11,8 +11,18 @@ export class ApiError extends Error {
   }
 }
 
-export async function publicApi<T = unknown>(path: string): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`);
+export async function publicApi<T = unknown>(
+  path: string,
+  options: { method?: string; body?: unknown; headers?: Record<string, string> } = {},
+): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, {
+    method: options.method ?? (options.body !== undefined ? "POST" : "GET"),
+    headers: {
+      ...(options.body !== undefined ? { "Content-Type": "application/json" } : {}),
+      ...options.headers,
+    },
+    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+  });
   const text = await res.text();
   const data = text ? JSON.parse(text) : undefined;
   if (!res.ok) {

@@ -29,4 +29,20 @@ public sealed class VenueDirectory(TingGoDbContext db) : IVenueDirectory
             .Select(x => new VenueInfo(x.Id, x.OrganizationId, x.CurrencyCode, x.DefaultLocale,
                 x.Timezone, x.Status, x.Name, x.Slug))
             .FirstOrDefaultAsync(ct)!;
+
+    public async Task<TableInfo?> GetActiveTableByQrTokenAsync(string rawQrToken, CancellationToken ct = default)
+    {
+        var tokenHash = Endpoints.TableEndpoints.Sha256(rawQrToken);
+        var result = await (
+            from qr in db.Set<QrCode>().AsNoTracking()
+            join table in db.Set<DiningTable>().AsNoTracking() on qr.TableId equals table.Id
+            join venue in db.Set<Venue>().AsNoTracking() on table.VenueId equals venue.Id
+            where qr.TokenHash == tokenHash
+                  && qr.Status == QrStatus.Active
+                  && table.Status == TableStatus.Active
+                  && venue.Status == "active"
+            select new TableInfo(table.Id, table.VenueId, table.Code, table.Name)
+        ).FirstOrDefaultAsync(ct);
+        return result;
+    }
 }

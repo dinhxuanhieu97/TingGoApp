@@ -57,6 +57,10 @@ builder.Services.AddHealthChecks()
     .AddCheck<PostgresHealthCheck>("postgres")
     .AddCheck<RedisHealthCheck>("redis");
 
+// --- Infrastructure entities (outbox, idempotency) ---
+builder.Services.AddSingleton<TingGo.SharedKernel.Persistence.IModuleEntityConfigurator,
+    TingGo.Infrastructure.Persistence.InfrastructureEntityConfigurator>();
+
 // --- Modules (modular monolith) ---
 foreach (var module in ModuleRegistry.Modules)
 {
