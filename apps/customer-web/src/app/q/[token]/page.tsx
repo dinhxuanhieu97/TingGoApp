@@ -283,21 +283,27 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
                 )}
               </div>
             </div>
-            {/* Chuyển ngôn ngữ VI/EN/ZH/JA */}
-            <div className="flex shrink-0 rounded-full bg-white/20 p-0.5">
-              {LANGS.map((l) => (
-                <button
-                  key={l.code}
-                  onClick={() => changeLang(l.code)}
-                  aria-label={l.nativeName}
-                  className={`rounded-full px-2 py-1 text-[11px] font-bold transition-colors ${
-                    lang === l.code ? "bg-white text-brand-600" : "text-white/85"
-                  }`}
-                >
-                  {l.label}
-                </button>
-              ))}
-            </div>
+            {/* Chuyển ngôn ngữ VI/EN/ZH/JA — select gọn với icon địa cầu */}
+            <label className="relative flex shrink-0 items-center">
+              <span className="pointer-events-none absolute left-2.5 text-sm">🌐</span>
+              <select
+                value={lang}
+                onChange={(e) => changeLang(e.target.value as Lang)}
+                aria-label="Ngôn ngữ / Language"
+                className="appearance-none rounded-full bg-white/20 py-1.5 pl-8 pr-7 text-xs font-bold text-white backdrop-blur focus:outline-none focus:ring-2 focus:ring-white/60 [&>option]:text-gray-800"
+              >
+                {LANGS.map((l) => (
+                  <option key={l.code} value={l.code}>
+                    {l.nativeName}
+                  </option>
+                ))}
+              </select>
+              <svg className="pointer-events-none absolute right-2.5" width="10" height="10"
+                viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"
+                strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </label>
           </div>
 
           {serviceNotice && (

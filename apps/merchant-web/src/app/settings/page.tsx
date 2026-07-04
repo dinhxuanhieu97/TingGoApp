@@ -61,8 +61,34 @@ function defaultHours(): OpeningHourRow[] {
 const inputClass =
   "mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100";
 
+type SectionIcon = "store" | "card" | "clock";
+
+const ICON_PATHS: Record<SectionIcon, React.ReactNode> = {
+  store: (
+    <>
+      <path d="M3 9l1.5-5h15L21 9" />
+      <path d="M4 9v11a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9" />
+      <path d="M3 9h18" />
+      <path d="M9 21v-6h6v6" />
+    </>
+  ),
+  card: (
+    <>
+      <rect x="2" y="5" width="20" height="14" rx="2" />
+      <line x1="2" y1="10" x2="22" y2="10" />
+      <line x1="6" y1="15" x2="10" y2="15" />
+    </>
+  ),
+  clock: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <polyline points="12 7 12 12 15.5 14" />
+    </>
+  ),
+};
+
 interface SectionCardProps {
-  icon: string;
+  icon: SectionIcon;
   title: string;
   description: string;
   children: React.ReactNode;
@@ -70,14 +96,17 @@ interface SectionCardProps {
 
 function SectionCard({ icon, title, description, children }: SectionCardProps) {
   return (
-    <section className="rounded-2xl bg-white p-4 shadow sm:p-5">
-      <div className="mb-4 flex items-start gap-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-lg">
-          {icon}
+    <section className="rounded-2xl border border-brand-100/60 bg-white p-4 shadow-sm sm:p-6">
+      <div className="mb-5 flex items-center gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-100 text-brand-600">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            {ICON_PATHS[icon]}
+          </svg>
         </span>
         <div>
-          <h2 className="font-semibold">{title}</h2>
-          <p className="text-xs text-gray-500">{description}</p>
+          <h2 className="font-semibold leading-tight">{title}</h2>
+          <p className="mt-0.5 text-xs text-gray-500">{description}</p>
         </div>
       </div>
       {children}
@@ -275,7 +304,7 @@ export default function SettingsPage() {
           <div className="space-y-4">
             <form onSubmit={save} className="contents">
               <SectionCard
-                icon="🏪"
+                icon="store"
                 title="Thông tin quán"
                 description="Tên, Wi-Fi và định dạng hiển thị cho khách"
               >
@@ -333,7 +362,7 @@ export default function SettingsPage() {
               </SectionCard>
 
               <SectionCard
-                icon="💳"
+                icon="card"
                 title="QR chuyển khoản"
                 description="Khách bấm “Thanh toán” sẽ thấy ảnh QR này (VietQR tĩnh)"
               >
@@ -388,7 +417,7 @@ export default function SettingsPage() {
           </div>
 
           <SectionCard
-            icon="🕐"
+            icon="clock"
             title="Giờ mở cửa"
             description="Khách thấy “Đang mở cửa / Ngoài giờ” trên trang gọi món"
           >
