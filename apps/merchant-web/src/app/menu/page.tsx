@@ -7,17 +7,48 @@ import type { Category, Membership, Menu, Product, Venue } from "@/lib/types";
 import { formatMoney } from "@/lib/types";
 import ProductEditModal from "@/components/ProductEditModal";
 
-interface ImportResult {
-  menuCreated: boolean;
-  menuPublished: boolean;
-  categoriesCreated: number;
-  productsCreated: number;
-  productsSkipped: number;
+interface ImportSummary {
+  importId: string;
+  status: string;
+  totalRows: number;
+  validRows: number;
+  warningRows: number;
+  errorRows: number;
+  sections: { section: string; total: number; errors: number; warnings: number }[];
+  canCommit: boolean;
+}
+
+interface ImportIssueView {
+  severity: string;
+  code: string;
+  sheetName?: string;
+  rowNumber?: number;
+  fieldName?: string;
+  message: string;
+}
+
+interface CommitOutcome {
   areasCreated: number;
   tablesCreated: number;
-  tablesSkipped: number;
-  errors: string[];
+  categoriesCreated: number;
+  productsCreated: number;
+  variantsCreated: number;
+  groupsCreated: number;
+  optionsCreated: number;
+  menuCreated: boolean;
 }
+
+const SECTION_LABEL: Record<string, string> = {
+  VENUE: "Thông tin quán",
+  AREAS: "Khu vực",
+  TABLES: "Bàn",
+  CATEGORIES: "Danh mục",
+  PRODUCTS: "Món",
+  VARIANTS: "Size",
+  MODIFIER_GROUPS: "Nhóm tùy chọn",
+  MODIFIER_OPTIONS: "Lựa chọn",
+  PRODUCT_MODIFIERS: "Liên kết món-nhóm",
+};
 
 interface MenuDetail extends Menu {
   categories: Category[];
@@ -33,24 +64,26 @@ export default function MenuPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
-  const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
+  const [importIssues, setImportIssues] = useState<ImportIssueView[]>([]);
+  const [commitOutcome, setCommitOutcome] = useState<CommitOutcome | null>(null);
   const [importing, setImporting] = useState(false);
+  const [committing, setCommitting] = useState(false);
 
   const showError = (err: unknown) =>
     setError(err instanceof ApiError ? err.message : "Đã xảy ra lỗi.");
 
   const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5080/api/v1";
 
-  async function downloadTemplate() {
-    if (!venue) return;
-    const res = await fetch(`${apiBase}/venues/${venue.id}/import/template`, {
+  async function downloadAuthorizedFile(path: string, filename: string) {
+    const res = await fetch(`${apiBase}${path}`, {
       headers: { Authorization: `Bearer ${getTokens()?.accessToken}` },
     });
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "tinggo-mau-nhap-lieu.xlsx";
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -59,18 +92,49 @@ export default function MenuPage() {
     if (!venue) return;
     setImporting(true);
     setError("");
+    setCommitOutcome(null);
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const result = await api<ImportResult>(`/venues/${venue.id}/import`, { formData });
-      setImportResult(result);
-      await loadMenus(venue);
-      setProducts(await api<Product[]>(`/venues/${venue.id}/products`));
+      const summary = await api<ImportSummary>(`/venues/${venue.id}/imports`, { formData });
+      setImportSummary(summary);
+      setImportIssues(await api<ImportIssueView[]>(`/imports/${summary.importId}/issues`));
     } catch (err) {
       showError(err);
     } finally {
       setImporting(false);
     }
+  }
+
+  async function commitImport() {
+    if (!venue || !importSummary) return;
+    setCommitting(true);
+    try {
+      const result = await api<{ status: string; outcome: CommitOutcome }>(
+        `/imports/${importSummary.importId}/commit`,
+        { method: "POST" },
+      );
+      setCommitOutcome(result.outcome);
+      setImportSummary(null);
+      setImportIssues([]);
+      await loadMenus(venue);
+      setProducts(await api<Product[]>(`/venues/${venue.id}/products`));
+    } catch (err) {
+      showError(err);
+    } finally {
+      setCommitting(false);
+    }
+  }
+
+  async function cancelImport() {
+    if (!importSummary) return;
+    try {
+      await api(`/imports/${importSummary.importId}/cancel`, { method: "POST" });
+    } catch {
+      /* job có thể đã hủy */
+    }
+    setImportSummary(null);
+    setImportIssues([]);
   }
 
   // Nạp venue từ memberships
@@ -229,7 +293,10 @@ export default function MenuPage() {
 
       <div className="mx-6 mt-4 flex flex-wrap items-center gap-2 rounded-2xl bg-white p-3 shadow">
         <span className="text-sm font-semibold">Nhập dữ liệu nhanh:</span>
-        <button onClick={downloadTemplate} className="rounded-lg border border-orange-400 px-3 py-1.5 text-sm text-orange-600 hover:bg-orange-50">
+        <button
+          onClick={() => venue && downloadAuthorizedFile(`/venues/${venue.id}/imports/template`, "TingGo_Import_Template.xlsx")}
+          className="rounded-lg border border-orange-400 px-3 py-1.5 text-sm text-orange-600 hover:bg-orange-50"
+        >
           ⬇ Tải file mẫu Excel
         </button>
         <label className="cursor-pointer rounded-lg bg-orange-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-orange-700">
@@ -246,30 +313,82 @@ export default function MenuPage() {
             }}
           />
         </label>
-        <span className="text-xs text-gray-400">Món + danh mục + size + topping + khu vực + bàn trong 1 file</span>
+        <span className="text-xs text-gray-400">Quán + khu vực + bàn + menu + size + topping trong 1 file — xem trước rồi mới ghi</span>
       </div>
 
-      {importResult && (
-        <div className="mx-6 mt-3 rounded-2xl bg-green-50 p-4 text-sm shadow ring-1 ring-green-200">
-          <p className="font-semibold text-green-800">Kết quả nhập:</p>
-          <p>
-            {importResult.categoriesCreated} danh mục, {importResult.productsCreated} món
-            {importResult.productsSkipped > 0 && ` (bỏ qua ${importResult.productsSkipped} món trùng)`},{" "}
-            {importResult.areasCreated} khu vực, {importResult.tablesCreated} bàn
-            {importResult.tablesSkipped > 0 && ` (bỏ qua ${importResult.tablesSkipped} bàn trùng mã)`}.
-            {importResult.menuPublished && " Menu đã được công bố."}
-          </p>
-          {importResult.tablesCreated > 0 && (
-            <p className="mt-1">
-              → Sang trang <a href="/tables" className="font-semibold text-orange-600 underline">Bàn & QR</a> để in QR cho bàn mới.
+      {importSummary && (
+        <div className="mx-6 mt-3 rounded-2xl bg-white p-4 text-sm shadow ring-1 ring-orange-200">
+          <div className="flex items-center justify-between">
+            <p className="font-semibold">
+              Xem trước import — {importSummary.totalRows} dòng
+              {importSummary.errorRows > 0 && (
+                <span className="ml-2 text-red-600">{importSummary.errorRows} lỗi</span>
+              )}
+              {importSummary.warningRows > 0 && (
+                <span className="ml-2 text-amber-600">{importSummary.warningRows} cảnh báo</span>
+              )}
             </p>
-          )}
-          {importResult.errors.length > 0 && (
-            <ul className="mt-1 list-inside list-disc text-red-600">
-              {importResult.errors.map((e, i) => <li key={i}>{e}</li>)}
+            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+              importSummary.canCommit ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+            }`}>
+              {importSummary.canCommit ? "Sẵn sàng import" : "Cần sửa lỗi"}
+            </span>
+          </div>
+          <p className="mt-1 text-gray-600">
+            {importSummary.sections
+              .map((s) => `${s.total - s.errors} ${SECTION_LABEL[s.section] ?? s.section}`)
+              .join(" · ")}
+          </p>
+          {importIssues.length > 0 && (
+            <ul className="mt-2 max-h-40 space-y-0.5 overflow-y-auto rounded-lg bg-gray-50 p-2 text-xs">
+              {importIssues.map((issue, index) => (
+                <li key={index} className={
+                  issue.severity === "ERROR" ? "text-red-600" :
+                  issue.severity === "WARNING" ? "text-amber-600" : "text-gray-500"
+                }>
+                  [{issue.severity}] {issue.sheetName} dòng {issue.rowNumber ?? "-"}: {issue.message}
+                </li>
+              ))}
             </ul>
           )}
-          <button onClick={() => setImportResult(null)} className="mt-2 text-xs text-gray-500 underline">Đóng</button>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              onClick={commitImport}
+              disabled={!importSummary.canCommit || committing}
+              className="rounded-lg bg-orange-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-orange-700 disabled:opacity-40"
+            >
+              {committing ? "Đang import..." : "Xác nhận import"}
+            </button>
+            {(importSummary.errorRows > 0 || importSummary.warningRows > 0) && (
+              <button
+                onClick={() => downloadAuthorizedFile(`/imports/${importSummary.importId}/error-file`, "TingGo_Import_Errors.xlsx")}
+                className="rounded-lg border border-amber-400 px-3 py-1.5 text-sm text-amber-700 hover:bg-amber-50"
+              >
+                ⬇ Tải file báo lỗi
+              </button>
+            )}
+            <button onClick={cancelImport} className="rounded-lg border px-3 py-1.5 text-sm hover:bg-gray-50">
+              Hủy
+            </button>
+          </div>
+        </div>
+      )}
+
+      {commitOutcome && (
+        <div className="mx-6 mt-3 rounded-2xl bg-green-50 p-4 text-sm shadow ring-1 ring-green-200">
+          <p className="font-semibold text-green-800">✓ Import hoàn tất</p>
+          <p className="mt-1">
+            {commitOutcome.areasCreated} khu vực · {commitOutcome.tablesCreated} bàn (đã tạo QR) ·{" "}
+            {commitOutcome.categoriesCreated} danh mục · {commitOutcome.productsCreated} món ·{" "}
+            {commitOutcome.variantsCreated} size · {commitOutcome.groupsCreated} nhóm tùy chọn
+          </p>
+          <p className="mt-1 text-green-900">
+            {commitOutcome.menuCreated
+              ? "Menu đang ở trạng thái NHÁP — kiểm tra bên dưới rồi bấm nút công bố."
+              : "Dữ liệu đã thêm vào menu hiện tại."}
+            {" "}Sang <a href="/tables" className="font-semibold text-orange-600 underline">Bàn & QR</a> để in QR.
+          </p>
+          <button onClick={() => setCommitOutcome(null)} className="mt-2 text-xs text-gray-500 underline">Đóng</button>
         </div>
       )}
 
