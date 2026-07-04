@@ -23,7 +23,15 @@ public sealed class NotificationsModule : IModule
     public IServiceCollection AddModule(IServiceCollection services, IConfiguration configuration)
     {
         services.AddSingleton<IModuleEntityConfigurator, NotificationsEntityConfigurator>();
-        services.AddSingleton<IPushSender, NoopPushSender>();
+        services.AddHttpClient("expo-push");
+        if (configuration.GetValue("Push:Provider", "expo") == "expo")
+        {
+            services.AddSingleton<IPushSender, ExpoPushSender>();
+        }
+        else
+        {
+            services.AddSingleton<IPushSender, NoopPushSender>();
+        }
         return services;
     }
 

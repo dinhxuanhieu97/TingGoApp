@@ -23,7 +23,7 @@ public sealed record CreateVenueDto(
 public sealed record UpdateOrganizationDto(string? Name, string? DefaultLocale, string? DefaultCurrency);
 public sealed record UpdateVenueDto(
     string? Name, string? Timezone, string? DefaultLocale, string? CurrencyCode,
-    string? WifiName, long RowVersion);
+    string? WifiName, string? BankQrImageUrl, long RowVersion);
 public sealed record UpdateVenueStatusDto(string Status, long RowVersion);
 
 public sealed class VenuesModule : IModule
@@ -184,6 +184,7 @@ public sealed class VenuesModule : IModule
             venue.DefaultLocale = dto.DefaultLocale ?? venue.DefaultLocale;
             venue.CurrencyCode = dto.CurrencyCode ?? venue.CurrencyCode;
             venue.WifiName = dto.WifiName ?? venue.WifiName;
+            venue.BankQrImageUrl = dto.BankQrImageUrl ?? venue.BankQrImageUrl;
             Touch(venue);
             await db.SaveChangesAsync(ct);
             return Results.Ok(ToDto(venue));
@@ -282,7 +283,8 @@ public sealed class VenuesModule : IModule
         => new
         {
             v.Id, v.OrganizationId, v.Name, v.Slug, v.CountryCode, v.Timezone,
-            v.DefaultLocale, v.CurrencyCode, v.Status, v.RowVersion, v.CreatedAt,
+            v.DefaultLocale, v.CurrencyCode, v.Status, v.WifiName, v.BankQrImageUrl,
+            v.RowVersion, v.CreatedAt,
         };
 
     private static Guid GetUserId(ClaimsPrincipal principal)

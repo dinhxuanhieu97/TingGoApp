@@ -14,9 +14,10 @@ interface Props {
   venueId: string;
   tableCodes: Record<string, string>;
   ttsEnabled: boolean;
+  onServiceRequestEvent?: () => void;
 }
 
-export default function OrdersScreen({ venueId, tableCodes, ttsEnabled }: Props) {
+export default function OrdersScreen({ venueId, tableCodes, ttsEnabled, onServiceRequestEvent }: Props) {
   const [orders, setOrders] = useState<ActiveOrder[]>([]);
   const [connected, setConnected] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -38,6 +39,10 @@ export default function OrdersScreen({ venueId, tableCodes, ttsEnabled }: Props)
     load();
     const connection = createRealtimeConnection(venueId, {
       onOrderEvent: async (eventType) => {
+        if (eventType.startsWith("service_request")) {
+          onServiceRequestEvent?.();
+          return;
+        }
         if (eventType === "order.created" && ttsEnabledRef.current) {
           // Lấy order mới nhất để đọc — payload chỉ có tóm tắt
           try {

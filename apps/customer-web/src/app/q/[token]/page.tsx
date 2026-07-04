@@ -119,6 +119,9 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
   }, [sessionToken]);
 
   const [serviceNotice, setServiceNotice] = useState("");
+  const [search, setSearch] = useState("");
+  const [paymentModal, setPaymentModal] = useState(false);
+
   async function callStaff(type: "call_staff" | "payment") {
     if (!sessionToken) return;
     try {
@@ -131,6 +134,23 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
       setError(err instanceof ApiError ? err.message : "Không gửi được yêu cầu.");
     }
   }
+
+  function requestPayment() {
+    callStaff("payment");
+    setPaymentModal(true); // CUS-09/ADR-004: hiện QR chuyển khoản nếu quán cấu hình
+  }
+
+  const filteredCategories = useMemo(() => {
+    if (!menu) return [];
+    const term = search.trim().toLowerCase();
+    if (!term) return menu.categories;
+    return menu.categories
+      .map((category) => ({
+        ...category,
+        products: category.products.filter((p) => p.name.toLowerCase().includes(term)),
+      }))
+      .filter((category) => category.products.length > 0);
+  }, [menu, search]);
 
   async function submitOrder() {
     if (!sessionToken || cart.length === 0 || submitting) return;
@@ -221,7 +241,7 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
               🔔 Gọi nhân viên
             </button>
             <button
-              onClick={() => callStaff("payment")}
+              onClick={requestPayment}
               className="rounded-full border border-orange-300 px-3 py-1.5 text-xs font-semibold text-orange-600 hover:bg-orange-50"
             >
               💰 Thanh toán
@@ -231,6 +251,18 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
         {serviceNotice && (
           <p className="mt-1 text-xs font-medium text-green-600">{serviceNotice}</p>
         )}
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="🔍 Tìm món..."
+          className="mt-2 w-full rounded-full border border-gray-200 bg-gray-50 px-4 py-2 text-sm focus:border-orange-400 focus:outline-none"
+        />
+        <p className="mt-1.5 text-[11px] text-gray-400">
+          Thanh toán:{" "}
+          {context?.venue.paymentMethods
+            ?.map((m) => (m === "cash" ? "Tiền mặt" : "Chuyển khoản QR"))
+            .join(" · ") ?? "Tiền mặt"}
+        </p>
       </header>
 
       {error && (
@@ -273,7 +305,12 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
       )}
 
       <div className="space-y-6 p-4">
-        {menu?.categories.map((category) => (
+        {search.trim() && filteredCategories.length === 0 && (
+          <p className="py-8 text-center text-sm text-gray-400">
+            Không tìm thấy món nào cho “{search.trim()}”.
+          </p>
+        )}
+        {filteredCategories.map((category) => (
           <section key={category.id}>
             <h2 className="mb-2 font-semibold">{category.name}</h2>
             <ul className="space-y-2">
@@ -326,6 +363,40 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
           <span>🛒 {itemCount} món</span>
           <span>{formatMoney(cartTotal(cart), currency)}</span>
         </button>
+      )}
+
+      {paymentModal && (
+        <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/50 p-6"
+          onClick={() => setPaymentModal(false)}>
+          <div className="w-full max-w-xs rounded-2xl bg-white p-5 text-center"
+            onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold">Thanh toán — Bàn {context?.table.code}</h3>
+            {sessionOrders && (
+              <p className="mt-1 text-xl font-bold text-orange-600">
+                {formatMoney(sessionOrders.totalMinor, currency)}
+              </p>
+            )}
+            {context?.venue.bankQrImageUrl ? (
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={`${API_ORIGIN}${context.venue.bankQrImageUrl}`} alt="QR chuyển khoản"
+                  className="mx-auto my-3 h-52 w-52 rounded-xl border object-contain" />
+                <p className="text-xs text-gray-500">
+                  Quét QR để chuyển khoản, hoặc thanh toán tiền mặt.
+                  Nhân viên sẽ đến xác nhận với bạn.
+                </p>
+              </>
+            ) : (
+              <p className="my-4 text-sm text-gray-600">
+                Nhân viên sẽ đến thu tiền tại bàn. Cảm ơn bạn! 🙏
+              </p>
+            )}
+            <button onClick={() => setPaymentModal(false)}
+              className="mt-3 w-full rounded-xl bg-orange-600 py-2.5 font-semibold text-white">
+              Đóng
+            </button>
+          </div>
+        </div>
       )}
 
       {selected && (

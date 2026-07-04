@@ -52,6 +52,11 @@ public static class PublicQrEndpoints
                 {
                     venue.Id, venue.Name, venue.Slug,
                     venue.CurrencyCode, venue.DefaultLocale, venue.Timezone, venue.WifiName,
+                    venue.BankQrImageUrl,
+                    // ADR-004: MVP cash + chuyển khoản QR tĩnh
+                    paymentMethods = venue.BankQrImageUrl is null
+                        ? new[] { "cash" }
+                        : new[] { "cash", "bank_transfer" },
                 },
                 table = new { table.Id, table.Code, table.Name },
                 area = area is null ? null : new { area.Id, area.Name },

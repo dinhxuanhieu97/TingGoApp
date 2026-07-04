@@ -77,6 +77,44 @@ public sealed class StaffService(TingGoDbContext db, IVenueDirectory venueDirect
             .ToListAsync(ct);
     }
 
+    public async Task ResetPinAsync(Guid callerUserId, Guid venueId, Guid membershipId, string pin, CancellationToken ct)
+    {
+        await EnsureManagerAsync(callerUserId, venueId, ct);
+        if (pin.Length is < 4 or > 6 || !pin.All(char.IsAsciiDigit))
+        {
+            throw new ApiException(ErrorCodes.ValidationFailed, "PIN phải gồm 4–6 chữ số.", 400);
+        }
+        var membership = await LoadStaffAsync(venueId, membershipId, ct);
+        membership.PinHash = PinHashing.Hash(pin);
+        membership.UpdatedAt = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync(ct);
+    }
+
+    public async Task SetStatusAsync(Guid callerUserId, Guid venueId, Guid membershipId, bool active, CancellationToken ct)
+    {
+        await EnsureManagerAsync(callerUserId, venueId, ct);
+        var membership = await LoadStaffAsync(venueId, membershipId, ct);
+        if (membership.Role == MembershipRole.Owner)
+        {
+            throw new ApiException(ErrorCodes.Forbidden, "Không thể thu hồi quyền owner.", 403);
+        }
+        membership.Status = active ? MembershipStatus.Active : MembershipStatus.Revoked;
+        membership.UpdatedAt = DateTimeOffset.UtcNow;
+        // Thu hồi → đăng xuất mọi thiết bị của nhân viên (MOB-01)
+        if (!active)
+        {
+            await db.Set<UserSession>()
+                .Where(x => x.UserId == membership.UserId && x.RevokedAt == null)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow), ct);
+        }
+        await db.SaveChangesAsync(ct);
+    }
+
+    private async Task<Membership> LoadStaffAsync(Guid venueId, Guid membershipId, CancellationToken ct)
+        => await db.Set<Membership>()
+               .FirstOrDefaultAsync(x => x.Id == membershipId && x.VenueId == venueId, ct)
+           ?? throw new ApiException(ErrorCodes.NotFound, "Không tìm thấy nhân viên.", 404);
+
     /// <summary>Caller phải là owner/manager của organization chứa venue. Trả về organizationId.</summary>
     private async Task<Guid> EnsureManagerAsync(Guid callerUserId, Guid venueId, CancellationToken ct)
     {

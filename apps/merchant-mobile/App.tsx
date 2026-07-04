@@ -1,16 +1,32 @@
 import { useCallback, useEffect, useState } from "react";
 import { StatusBar } from "expo-status-bar";
 import {
-  ActivityIndicator, StyleSheet, Switch, Text, TouchableOpacity, View,
+  ActivityIndicator, Platform, StyleSheet, Switch, Text, TouchableOpacity, View,
 } from "react-native";
+import * as Notifications from "expo-notifications";
 import { api, clearTokens, loadTokens } from "./src/lib/api";
 import type { Membership, Venue } from "./src/lib/types";
 import LoginScreen from "./src/screens/LoginScreen";
 import OrdersScreen from "./src/screens/OrdersScreen";
 import ProductsScreen from "./src/screens/ProductsScreen";
+import RequestsScreen from "./src/screens/RequestsScreen";
 
 type Screen = "loading" | "login" | "main";
-type Tab = "orders" | "products";
+type Tab = "orders" | "requests" | "products";
+
+/** MOB-02: đăng ký Expo push token — thất bại thầm lặng trên môi trường không hỗ trợ (Expo Go Android). */
+async function registerPushToken(): Promise<void> {
+  try {
+    const permission = await Notifications.requestPermissionsAsync();
+    if (!permission.granted) return;
+    const token = (await Notifications.getExpoPushTokenAsync()).data;
+    await api("/me/devices", {
+      body: { platform: Platform.OS === "ios" ? "ios" : "android", token, deviceName: "expo" },
+    });
+  } catch {
+    /* push chưa khả dụng — SignalR + TTS vẫn hoạt động khi app mở */
+  }
+}
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>("loading");
@@ -18,6 +34,7 @@ export default function App() {
   const [venue, setVenue] = useState<Venue | null>(null);
   const [tableCodes, setTableCodes] = useState<Record<string, string>>({});
   const [ttsEnabled, setTtsEnabled] = useState(true);
+  const [requestsSignal, setRequestsSignal] = useState(0);
 
   const bootstrap = useCallback(async () => {
     try {
@@ -43,6 +60,7 @@ export default function App() {
       const tables = await api<{ id: string; code: string }[]>(`/venues/${selected.id}/tables`);
       setTableCodes(Object.fromEntries(tables.map((t) => [t.id, t.code])));
       setScreen("main");
+      registerPushToken();
     } catch {
       await clearTokens();
       setScreen("login");
@@ -95,8 +113,20 @@ export default function App() {
         </TouchableOpacity>
       </View>
 
-      {venue && tab === "orders" && (
-        <OrdersScreen venueId={venue.id} tableCodes={tableCodes} ttsEnabled={ttsEnabled} />
+      {venue && (
+        <View style={[styles.screenHost, tab !== "orders" && styles.hidden]}>
+          <OrdersScreen
+            venueId={venue.id}
+            tableCodes={tableCodes}
+            ttsEnabled={ttsEnabled}
+            onServiceRequestEvent={() => setRequestsSignal((n) => n + 1)}
+          />
+        </View>
+      )}
+      {venue && (
+        <View style={[styles.screenHost, tab !== "requests" && styles.hidden]}>
+          <RequestsScreen venueId={venue.id} tableCodes={tableCodes} refreshSignal={requestsSignal} />
+        </View>
       )}
       {venue && tab === "products" && <ProductsScreen venueId={venue.id} />}
 
@@ -106,6 +136,12 @@ export default function App() {
           onPress={() => setTab("orders")}
         >
           <Text style={tab === "orders" ? styles.tabTextActive : styles.tabText}>📋 Order</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tabItem, tab === "requests" && styles.tabItemActive]}
+          onPress={() => setTab("requests")}
+        >
+          <Text style={tab === "requests" ? styles.tabTextActive : styles.tabText}>🙋 Yêu cầu</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tabItem, tab === "products" && styles.tabItemActive]}
@@ -130,6 +166,8 @@ const styles = StyleSheet.create({
   ttsToggle: { flexDirection: "row", alignItems: "center", gap: 4 },
   ttsLabel: { fontSize: 11, color: "#6b7280" },
   logout: { color: "#9ca3af", fontSize: 13 },
+  screenHost: { flex: 1 },
+  hidden: { display: "none" },
   tabBar: {
     flexDirection: "row", backgroundColor: "#fff", borderTopWidth: 1,
     borderTopColor: "#f3f4f6", paddingBottom: 24,

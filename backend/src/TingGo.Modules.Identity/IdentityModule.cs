@@ -22,6 +22,7 @@ public sealed record OtpVerifyDto(string Email, string Code, string? DeviceName)
 public sealed record RefreshDto(string RefreshToken);
 public sealed record StaffLoginDto(Guid VenueId, string StaffCode, string Pin, string? DeviceName);
 public sealed record CreateStaffDto(string DisplayName, string Role, string? StaffCode, string Pin);
+public sealed record ResetPinDto(string Pin);
 
 public sealed class IdentityModule : IModule
 {
@@ -110,6 +111,30 @@ public sealed class IdentityModule : IModule
         {
             var items = await service.ListStaffAsync(GetUserId(principal), venueId, ct);
             return Results.Ok(items);
+        }).RequireAuthorization();
+
+        endpoints.MapPost("/venues/{venueId:guid}/staff/{staffId:guid}/reset-pin", async (
+            Guid venueId, Guid staffId, ResetPinDto dto, ClaimsPrincipal principal,
+            StaffService service, CancellationToken ct) =>
+        {
+            await service.ResetPinAsync(GetUserId(principal), venueId, staffId, dto.Pin, ct);
+            return Results.NoContent();
+        }).RequireAuthorization();
+
+        endpoints.MapPost("/venues/{venueId:guid}/staff/{staffId:guid}/revoke", async (
+            Guid venueId, Guid staffId, ClaimsPrincipal principal,
+            StaffService service, CancellationToken ct) =>
+        {
+            await service.SetStatusAsync(GetUserId(principal), venueId, staffId, active: false, ct);
+            return Results.NoContent();
+        }).RequireAuthorization();
+
+        endpoints.MapPost("/venues/{venueId:guid}/staff/{staffId:guid}/activate", async (
+            Guid venueId, Guid staffId, ClaimsPrincipal principal,
+            StaffService service, CancellationToken ct) =>
+        {
+            await service.SetStatusAsync(GetUserId(principal), venueId, staffId, active: true, ct);
+            return Results.NoContent();
         }).RequireAuthorization();
 
         return endpoints;

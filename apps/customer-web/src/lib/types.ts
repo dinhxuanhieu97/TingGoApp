@@ -6,6 +6,8 @@ export interface QrContext {
     currencyCode: string;
     defaultLocale: string;
     wifiName?: string;
+    bankQrImageUrl?: string;
+    paymentMethods: string[];
   };
   table: { id: string; code: string; name: string };
   area: { id: string; name: string } | null;

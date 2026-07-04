@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using TingGo.Api.Hubs;
 using TingGo.Infrastructure.Persistence;
+using TingGo.Modules.Identity.Domain;
+using TingGo.Modules.Notifications.Domain;
 using TingGo.Modules.Ordering.Services;
 
 namespace TingGo.Api.Workers;
@@ -16,6 +18,7 @@ public sealed class OutboxWorker(
     IServiceScopeFactory scopeFactory,
     IHubContext<OrderHub> hub,
     SessionTokenService sessionTokens,
+    IPushSender pushSender,
     ILogger<OutboxWorker> logger) : BackgroundService
 {
     private const int BatchSize = 20;
@@ -63,6 +66,7 @@ public sealed class OutboxWorker(
             try
             {
                 await PublishAsync(outboxEvent, ct);
+                await PushIfNeededAsync(db, outboxEvent, ct);
                 outboxEvent.Status = OutboxStatus.Completed;
                 outboxEvent.ProcessedAt = DateTimeOffset.UtcNow;
             }
@@ -90,6 +94,38 @@ public sealed class OutboxWorker(
             await db.SaveChangesAsync(ct);
         }
         return events.Count;
+    }
+
+    /// <summary>MOB-02: push khi có đơn mới / khách gọi nhân viên — gửi tới thiết bị của staff quán.</summary>
+    private async Task PushIfNeededAsync(TingGoDbContext db, OutboxEvent outboxEvent, CancellationToken ct)
+    {
+        var (title, body) = outboxEvent.EventType switch
+        {
+            "order.created" => ("TingGo — Đơn mới 🔔", "Có đơn hàng mới, mở app để xác nhận."),
+            "service_request.created" => ("TingGo — Khách gọi 🙋", "Khách đang cần hỗ trợ tại bàn."),
+            _ => (null, null),
+        };
+        if (title is null) return;
+
+        var organizationId = await db.Set<TingGo.Modules.Venues.Domain.Venue>().AsNoTracking()
+            .Where(v => v.Id == outboxEvent.VenueId)
+            .Select(v => (Guid?)v.OrganizationId)
+            .FirstOrDefaultAsync(ct);
+        if (organizationId is null) return;
+
+        var tokens = await (
+            from membership in db.Set<Membership>().AsNoTracking()
+            join device in db.Set<DeviceToken>().AsNoTracking() on membership.UserId equals device.UserId
+            where membership.Status == MembershipStatus.Active
+                  && (membership.VenueId == outboxEvent.VenueId
+                      || (membership.VenueId == null && membership.OrganizationId == organizationId))
+            select device.Token
+        ).Distinct().Take(100).ToListAsync(ct);
+        if (tokens.Count > 0)
+        {
+            await pushSender.SendAsync(tokens, title, body!,
+                new Dictionary<string, string> { ["venueId"] = outboxEvent.VenueId.ToString() }, ct);
+        }
     }
 
     private async Task PublishAsync(OutboxEvent outboxEvent, CancellationToken ct)

@@ -13,6 +13,8 @@ public sealed class Venue
     public string Status { get; set; } = "active";
     public string? WifiName { get; set; }
     public string? WifiPasswordEncrypted { get; set; }
+    /// <summary>ADR-004: ảnh QR ngân hàng tĩnh (VietQR) hiển thị cho khách khi thanh toán.</summary>
+    public string? BankQrImageUrl { get; set; }
     public long RowVersion { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;

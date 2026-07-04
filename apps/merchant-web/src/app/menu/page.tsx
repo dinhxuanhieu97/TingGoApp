@@ -262,6 +262,12 @@ export default function MenuPage() {
             <a href="/orders" className="text-gray-500 hover:text-orange-600">
               Order
             </a>
+            <a href="/staff" className="text-gray-500 hover:text-orange-600">
+              Nhân viên
+            </a>
+            <a href="/settings" className="text-gray-500 hover:text-orange-600">
+              Cài đặt
+            </a>
           </nav>
           {venues.length > 0 && (
             <select

@@ -36,6 +36,7 @@ public sealed class VenuesEntityConfigurator : IModuleEntityConfigurator
             e.Property(x => x.Status).HasColumnName("status").HasMaxLength(32);
             e.Property(x => x.WifiName).HasColumnName("wifi_name").HasMaxLength(200);
             e.Property(x => x.WifiPasswordEncrypted).HasColumnName("wifi_password_encrypted");
+            e.Property(x => x.BankQrImageUrl).HasColumnName("bank_qr_image_url");
             e.Property(x => x.RowVersion).HasColumnName("row_version").IsConcurrencyToken();
             e.Property(x => x.CreatedAt).HasColumnName("created_at");
             e.Property(x => x.UpdatedAt).HasColumnName("updated_at");
