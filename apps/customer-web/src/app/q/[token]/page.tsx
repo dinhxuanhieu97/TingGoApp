@@ -51,8 +51,13 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
       try {
         const qrContext = await publicApi<QrContext>(`/public/q/${token}`);
         setContext(qrContext);
+        // i18n: khách nước ngoài (ngôn ngữ trình duyệt khác quán) → xin bản dịch
+        const browserLang = typeof navigator !== "undefined" ? navigator.language : "";
+        const langParam = browserLang &&
+          !qrContext.venue.defaultLocale.toLowerCase().startsWith(browserLang.split("-")[0].toLowerCase())
+          ? `?lang=${encodeURIComponent(browserLang)}` : "";
         const [menuData, session] = await Promise.all([
-          publicApi<PublicMenu>(`/public/venues/${qrContext.venue.slug}/menu`),
+          publicApi<PublicMenu>(`/public/venues/${qrContext.venue.slug}/menu${langParam}`),
           publicApi<{ sessionToken: string }>("/public/table-sessions", {
             body: { qrToken: token },
           }),

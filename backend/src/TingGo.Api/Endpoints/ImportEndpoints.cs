@@ -389,6 +389,10 @@ public static class ImportEndpoints
         AddSheet(workbook, "ProductModifiers",
             ["product_code", "group_code", "sort_order"],
             [["TRA_DAO", "SUGAR", "1"], ["TRA_DAO", "TOPPING", "2"]]);
+        AddSheet(workbook, "Translations",
+            ["entity_type", "entity_code", "locale", "name", "description"],
+            [["PRODUCT", "CF_SUA", "en-US", "Vietnamese Milk Coffee", "Traditional phin coffee with condensed milk"],
+             ["PRODUCT", "TRA_DAO", "en-US", "Peach Lemongrass Tea", ""]]);
 
         return workbook;
     }

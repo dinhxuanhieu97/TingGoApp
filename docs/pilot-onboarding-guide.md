@@ -19,7 +19,7 @@ Dành cho người hỗ trợ pilot. Thời lượng mục tiêu: 30–60 phút/
 2. **Chạy hệ thống:** `./scripts/start-pilot.sh` — ghi lại IP hiện ra (VD `192.168.1.50`).
 
 3. **Tạo tài khoản quán:** mở `http://<IP>:3000` → nhập email chủ quán → đọc mã OTP tại
-   `http://<IP>:8025` → tạo tổ chức + quán. **BẤM GIỜ TỪ ĐÂY** (KPI < 10 phút).
+   `http://localhost:8025` **trên máy Mac** (đã khóa localhost vì bảo mật) → tạo tổ chức + quán. **BẤM GIỜ TỪ ĐÂY** (KPI < 10 phút).
 
 4. **Import dữ liệu:** Menu → Tải file mẫu Excel → điền cùng chủ quán (hoặc dán từ file họ
    gửi trước) → nếu có ảnh: nén ZIP với thư mục `images/` → Nhập từ Excel → xem preview →
@@ -48,7 +48,7 @@ Dành cho người hỗ trợ pilot. Thời lượng mục tiêu: 30–60 phút/
 |---|---|
 | Khách quét QR không mở được | Điện thoại khách có cùng Wi-Fi quán không? IP đổi? → chạy lại script + in lại QR |
 | App nhân viên "Đã xảy ra lỗi" | Expo chạy thiếu `EXPO_PUBLIC_API_URL`? → chạy lại lệnh bước 6 |
-| Không thấy OTP | Mở `http://<IP>:8025` trên máy Mac |
+| Không thấy OTP | Mở `http://localhost:8025` **trên máy Mac** (đã khóa localhost vì bảo mật) trên máy Mac |
 | Đơn không "ting" | Xem chấm Real-time trên board; mất mạng → tự reconnect + resync |
 | Mất điện/sập máy | Mở lại → `./scripts/start-pilot.sh` — dữ liệu còn nguyên (Postgres volume) |
 

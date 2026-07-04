@@ -30,6 +30,15 @@ public sealed class VenueDirectory(TingGoDbContext db) : IVenueDirectory
                 x.Timezone, x.Status, x.Name, x.Slug))
             .FirstOrDefaultAsync(ct)!;
 
+    public async Task<Guid?> GetVenueIdByJoinCodeAsync(string joinCode, CancellationToken ct = default)
+    {
+        var id = await db.Set<Venue>().AsNoTracking()
+            .Where(x => x.JoinCode == joinCode.ToUpperInvariant())
+            .Select(x => (Guid?)x.Id)
+            .FirstOrDefaultAsync(ct);
+        return id;
+    }
+
     public async Task<TableInfo?> GetActiveTableByQrTokenAsync(string rawQrToken, CancellationToken ct = default)
     {
         var tokenHash = Endpoints.TableEndpoints.Sha256(rawQrToken);

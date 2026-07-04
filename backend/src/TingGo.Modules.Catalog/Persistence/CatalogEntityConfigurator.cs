@@ -59,6 +59,18 @@ public sealed class CatalogEntityConfigurator : IModuleEntityConfigurator
             e.HasIndex(x => new { x.VenueId, x.IsAvailable });
         });
 
+        b.Entity<ProductTranslation>(e =>
+        {
+            e.ToTable("product_translations");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasColumnName("id");
+            e.Property(x => x.ProductId).HasColumnName("product_id");
+            e.Property(x => x.Locale).HasColumnName("locale").HasMaxLength(10);
+            e.Property(x => x.Name).HasColumnName("name").HasMaxLength(200);
+            e.Property(x => x.Description).HasColumnName("description");
+            e.HasIndex(x => new { x.ProductId, x.Locale }).IsUnique();
+        });
+
         b.Entity<ProductVariant>(e =>
         {
             e.ToTable("product_variants");

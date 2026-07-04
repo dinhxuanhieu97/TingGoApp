@@ -125,7 +125,11 @@ public static class ProductEndpoints
                 }
                 product.CategoryId = dto.CategoryId.Value;
             }
-            product.Description = dto.Description ?? product.Description;
+            // Gửi chuỗi rỗng để xóa mô tả; null/không gửi = giữ nguyên
+            if (dto.Description is not null)
+            {
+                product.Description = dto.Description.Length == 0 ? null : dto.Description;
+            }
             product.Sku = dto.Sku ?? product.Sku;
             product.ImageUrl = dto.ImageUrl ?? product.ImageUrl;
             product.SortOrder = dto.SortOrder ?? product.SortOrder;

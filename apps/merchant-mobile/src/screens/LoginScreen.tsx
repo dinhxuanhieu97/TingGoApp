@@ -15,7 +15,7 @@ export default function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) 
   const [step, setStep] = useState<"email" | "code">("email");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
-  const [venueId, setVenueId] = useState("");
+  const [venueCode, setVenueCode] = useState("");
   const [staffCode, setStaffCode] = useState("");
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
@@ -51,7 +51,7 @@ export default function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) 
   const staffLogin = () =>
     run(async () => {
       const tokens = await api<AuthTokens>("/auth/staff/login", {
-        body: { venueId, staffCode, pin, deviceName: "merchant-mobile" },
+        body: { venueCode, staffCode, pin, deviceName: "merchant-mobile" },
       });
       await saveTokens(tokens.accessToken, tokens.refreshToken);
       onLoggedIn();
@@ -118,10 +118,11 @@ export default function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) 
         <>
           <TextInput
             style={styles.input}
-            placeholder="Venue ID (chủ quán cung cấp)"
-            autoCapitalize="none"
-            value={venueId}
-            onChangeText={setVenueId}
+            placeholder="Mã quán 6 ký tự (chủ quán cung cấp)"
+            autoCapitalize="characters"
+            maxLength={6}
+            value={venueCode}
+            onChangeText={setVenueCode}
           />
           <TextInput
             style={styles.input}

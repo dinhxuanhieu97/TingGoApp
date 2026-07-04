@@ -14,7 +14,7 @@ public static class PublicMenuEndpoints
     public static void Map(IEndpointRouteBuilder endpoints)
     {
         endpoints.MapGet("/public/venues/{slug}/menu", async (
-            string slug, HttpContext httpContext, TingGoDbContext db,
+            string slug, string? lang, HttpContext httpContext, TingGoDbContext db,
             TingGo.SharedKernel.Contracts.IVenueDirectory venueDirectory, CancellationToken ct) =>
         {
             // Cache CDN/browser 10s (NFR 5.1 — public menu có thể cache).
@@ -42,6 +42,23 @@ public static class PublicMenuEndpoints
                 .ToListAsync(ct);
 
             var productIds = products.Select(x => x.Id).ToList();
+
+            // i18n: ?lang=en hoặc en-US — khớp chính xác hoặc theo prefix; fallback tên gốc
+            var translations = new Dictionary<Guid, ProductTranslation>();
+            if (!string.IsNullOrWhiteSpace(lang) &&
+                !venueRow.DefaultLocale.StartsWith(lang.Split('-')[0], StringComparison.OrdinalIgnoreCase))
+            {
+                var prefix = lang.Split('-')[0].ToLowerInvariant();
+                var rows = await db.Set<ProductTranslation>().AsNoTracking()
+                    .Where(t => productIds.Contains(t.ProductId)
+                                && (t.Locale == lang || t.Locale.StartsWith(prefix)))
+                    .ToListAsync(ct);
+                translations = rows
+                    .GroupBy(t => t.ProductId)
+                    .ToDictionary(g => g.Key,
+                        g => g.OrderByDescending(t => t.Locale == lang).First());
+            }
+
             var variants = await db.Set<ProductVariant>().AsNoTracking()
                 .Where(x => productIds.Contains(x.ProductId) && x.IsAvailable)
                 .ToListAsync(ct);
@@ -74,7 +91,11 @@ public static class PublicMenuEndpoints
                     c.Id, c.Name,
                     products = products.Where(p => p.CategoryId == c.Id).Select(p => new
                     {
-                        p.Id, p.Name, p.Description, p.BasePriceMinor, p.CurrencyCode,
+                        p.Id,
+                        Name = translations.TryGetValue(p.Id, out var t) ? t.Name : p.Name,
+                        Description = translations.TryGetValue(p.Id, out var td)
+                            ? (td.Description ?? p.Description) : p.Description,
+                        p.BasePriceMinor, p.CurrencyCode,
                         p.ImageUrl, p.IsAvailable,
                         variants = variants.Where(v => v.ProductId == p.Id)
                             .Select(v => new { v.Id, v.Name, v.PriceDeltaMinor, v.IsDefault }),

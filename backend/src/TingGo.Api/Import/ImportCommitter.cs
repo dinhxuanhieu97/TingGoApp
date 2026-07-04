@@ -31,7 +31,7 @@ public static class ImportCommitter
             .ToListAsync(ct);
 
         List<T> Section<T>(string section) => rows
-            .Where(r => r.SectionType == section)
+            .Where(r => r.SectionType == section && r.NormalizedData != "{}") // bỏ dòng INFO-skip
             .Select(r => JsonSerializer.Deserialize<T>(r.NormalizedData, Json)!)
             .ToList();
 
@@ -205,6 +205,37 @@ public static class ImportCommitter
                 SortOrder = data.SortOrder,
             });
             linksCreated++;
+        }
+
+        // Translations (upsert theo product + locale) — nhận cả product trong file lẫn có sẵn
+        var translationRows = Section<TranslationRowData>(ImportSections.Translations);
+        if (translationRows.Count > 0)
+        {
+            var existingByCode = await db.Set<Product>()
+                .Where(p => p.VenueId == job.VenueId && p.Sku != null)
+                .ToDictionaryAsync(p => p.Sku!, StringComparer.OrdinalIgnoreCase, ct);
+            foreach (var row in translationRows)
+            {
+                var productId = productByCode.TryGetValue(row.EntityCode, out var fileProduct)
+                    ? fileProduct.Id
+                    : existingByCode.GetValueOrDefault(row.EntityCode)?.Id;
+                if (productId is null) continue;
+                var current = await db.Set<ProductTranslation>()
+                    .FirstOrDefaultAsync(t => t.ProductId == productId && t.Locale == row.Locale, ct);
+                if (current is null)
+                {
+                    db.Add(new ProductTranslation
+                    {
+                        ProductId = productId.Value, Locale = row.Locale,
+                        Name = row.Name, Description = row.Description,
+                    });
+                }
+                else
+                {
+                    current.Name = row.Name;
+                    current.Description = row.Description;
+                }
+            }
         }
 
         // Audit log (AC 11)

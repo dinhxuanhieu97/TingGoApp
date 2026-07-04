@@ -15,7 +15,7 @@ nhân viên, tablet quầy) **cùng Wi-Fi của quán**.
 Sau khi chạy script: **bắt buộc in lại poster QR** (Bàn & QR → In poster tất cả bàn) để QR
 trỏ IP mới. Đổi quán/đổi Wi-Fi → chạy lại script + in lại QR.
 
-Giới hạn chấp nhận ở pilot: OTP đọc tại Mailpit (`http://<IP>:8025`) — người hỗ trợ pilot
+Giới hạn chấp nhận ở pilot: OTP đọc tại Mailpit (`http://localhost:8025`, chỉ máy chủ) — người hỗ trợ pilot
 đọc mã giúp chủ quán lần đầu; máy phải cắm điện + không sleep (System Settings → ngăn sleep).
 
 ## KPI đo mỗi quán (PRD 2.5)

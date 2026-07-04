@@ -228,6 +228,29 @@ export default function MenuPage() {
     }
   }
 
+  async function moveProduct(product: Product, direction: -1 | 1) {
+    const sameCategory = products.filter((p) => p.categoryId === product.categoryId);
+    const index = sameCategory.findIndex((p) => p.id === product.id);
+    if (index + direction < 0 || index + direction >= sameCategory.length) return;
+    const reordered = [...sameCategory];
+    reordered.splice(index, 1);
+    reordered.splice(index + direction, 0, product);
+    try {
+      for (let i = 0; i < reordered.length; i++) {
+        if (reordered[i].sortOrder !== i + 1) {
+          await api(`/products/${reordered[i].id}`, {
+            method: "PATCH",
+            body: { sortOrder: i + 1, rowVersion: reordered[i].rowVersion },
+          });
+        }
+      }
+      await refreshProducts();
+    } catch (err) {
+      showError(err);
+      await refreshProducts();
+    }
+  }
+
   async function toggleAvailability(product: Product) {
     try {
       await api(`/products/${product.id}/availability`, {
@@ -497,6 +520,12 @@ export default function MenuPage() {
                 >
                   Sửa
                 </button>
+                <div className="flex flex-col">
+                  <button onClick={() => moveProduct(p, -1)} title="Lên"
+                    className="text-xs leading-3 text-gray-400 hover:text-orange-600">▲</button>
+                  <button onClick={() => moveProduct(p, 1)} title="Xuống"
+                    className="text-xs leading-3 text-gray-400 hover:text-orange-600">▼</button>
+                </div>
               </li>
             ))}
           </ul>

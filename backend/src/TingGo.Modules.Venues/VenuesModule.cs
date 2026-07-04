@@ -285,7 +285,7 @@ public sealed class VenuesModule : IModule
         {
             v.Id, v.OrganizationId, v.Name, v.Slug, v.CountryCode, v.Timezone,
             v.DefaultLocale, v.CurrencyCode, v.Status, v.WifiName, v.BankQrImageUrl,
-            v.RowVersion, v.CreatedAt,
+            v.JoinCode, v.RowVersion, v.CreatedAt,
         };
 
     private static Guid GetUserId(ClaimsPrincipal principal)

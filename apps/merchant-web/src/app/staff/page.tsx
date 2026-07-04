@@ -152,8 +152,11 @@ export default function StaffPage() {
             </button>
           </form>
           <p className="mt-2 text-xs text-gray-400">
-            Mã đăng nhập (NVxx) tự sinh — nhân viên đăng nhập app bằng Venue ID + mã + PIN.
-            Venue ID: <code className="rounded bg-gray-100 px-1">{venue?.id}</code>
+            Nhân viên đăng nhập app bằng: <b>Mã quán</b>{" "}
+            <code className="rounded bg-orange-100 px-1.5 py-0.5 text-sm font-bold text-orange-700">
+              {venue?.joinCode ?? "..."}
+            </code>{" "}
+            + mã nhân viên (NVxx) + PIN.
           </p>
         </section>
 

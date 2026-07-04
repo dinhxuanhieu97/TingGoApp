@@ -20,6 +20,9 @@ public interface IVenueDirectory
     /// Tra cứu bàn từ raw QR token (hash nội bộ). Chỉ trả về khi QR active + bàn active + venue active.
     /// </summary>
     Task<TableInfo?> GetActiveTableByQrTokenAsync(string rawQrToken, CancellationToken ct = default);
+
+    /// <summary>Tra venue id từ mã quán 6 ký tự (staff login mobile) — null nếu không có.</summary>
+    Task<Guid?> GetVenueIdByJoinCodeAsync(string joinCode, CancellationToken ct = default);
 }
 
 public sealed record TableInfo(Guid TableId, Guid VenueId, string Code, string Name);

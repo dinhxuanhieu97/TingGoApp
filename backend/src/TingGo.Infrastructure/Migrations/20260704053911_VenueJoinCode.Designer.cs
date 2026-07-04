@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using TingGo.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using TingGo.Infrastructure.Persistence;
 namespace TingGo.Infrastructure.Migrations
 {
     [DbContext(typeof(TingGoDbContext))]
-    partial class TingGoDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260704053911_VenueJoinCode")]
+    partial class VenueJoinCode
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -689,41 +692,6 @@ namespace TingGo.Infrastructure.Migrations
                     b.HasKey("ProductId", "ModifierGroupId");
 
                     b.ToTable("product_modifier_groups", (string)null);
-                });
-
-            modelBuilder.Entity("TingGo.Modules.Catalog.Domain.ProductTranslation", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<string>("Description")
-                        .HasColumnType("text")
-                        .HasColumnName("description");
-
-                    b.Property<string>("Locale")
-                        .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("character varying(10)")
-                        .HasColumnName("locale");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("name");
-
-                    b.Property<Guid>("ProductId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("product_id");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProductId", "Locale")
-                        .IsUnique();
-
-                    b.ToTable("product_translations", (string)null);
                 });
 
             modelBuilder.Entity("TingGo.Modules.Catalog.Domain.ProductVariant", b =>

@@ -37,7 +37,7 @@ echo "   Customer Web: $(curl -s -o /dev/null -w '%{http_code}' http://$IP:3001)
 echo ""
 echo "📋 Quán dùng:"
 echo "   • Quản lý (laptop/tablet): http://$IP:3000"
-echo "   • OTP đăng nhập xem tại:   http://$IP:8025 (Mailpit)"
+echo "   • OTP đăng nhập xem tại:   http://localhost:8025 (CHỈ trên máy này — bảo mật)"
 echo "   • Mobile app: EXPO_PUBLIC_API_URL=http://$IP:5080/api/v1 npx expo start (trong apps/merchant-mobile)"
 echo ""
 echo "⚠️  QUAN TRỌNG: vào Bàn & QR → 'In poster tất cả bàn' SAU khi chạy script này"

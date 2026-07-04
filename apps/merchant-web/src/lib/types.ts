@@ -20,6 +20,7 @@ export interface Venue {
   currencyCode: string;
   defaultLocale: string;
   status: string;
+  joinCode?: string;
   rowVersion: number;
 }
 

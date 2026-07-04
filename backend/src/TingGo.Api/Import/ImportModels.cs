@@ -28,6 +28,8 @@ public sealed record OptionRowData(
 
 public sealed record ProductModifierRowData(string ProductCode, string GroupCode, int SortOrder);
 
+public sealed record TranslationRowData(string EntityCode, string Locale, string Name, string? Description);
+
 public static class ImportSections
 {
     public const string Venue = "VENUE";
@@ -40,4 +42,5 @@ public static class ImportSections
     public const string ModifierGroups = "MODIFIER_GROUPS";
     public const string ModifierOptions = "MODIFIER_OPTIONS";
     public const string ProductModifiers = "PRODUCT_MODIFIERS";
+    public const string Translations = "TRANSLATIONS";
 }

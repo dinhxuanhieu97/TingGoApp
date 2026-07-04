@@ -20,7 +20,7 @@ namespace TingGo.Modules.Identity;
 public sealed record OtpRequestDto(string Email);
 public sealed record OtpVerifyDto(string Email, string Code, string? DeviceName);
 public sealed record RefreshDto(string RefreshToken);
-public sealed record StaffLoginDto(Guid VenueId, string StaffCode, string Pin, string? DeviceName);
+public sealed record StaffLoginDto(Guid? VenueId, string? VenueCode, string StaffCode, string Pin, string? DeviceName);
 public sealed record CreateStaffDto(string DisplayName, string Role, string? StaffCode, string Pin);
 public sealed record ResetPinDto(string Pin);
 
@@ -55,9 +55,22 @@ public sealed class IdentityModule : IModule
             return Results.Ok(tokens);
         });
 
-        auth.MapPost("/staff/login", async (StaffLoginDto dto, AuthService service, CancellationToken ct) =>
+        auth.MapPost("/staff/login", async (
+            StaffLoginDto dto, AuthService service,
+            TingGo.SharedKernel.Contracts.IVenueDirectory venues, CancellationToken ct) =>
         {
-            var tokens = await service.StaffLoginAsync(dto.VenueId, dto.StaffCode, dto.Pin, dto.DeviceName, ct);
+            // Nhận Venue ID (cũ) hoặc mã quán 6 ký tự (mobile) — thông báo lỗi chung
+            var venueId = dto.VenueId;
+            if (venueId is null && !string.IsNullOrWhiteSpace(dto.VenueCode))
+            {
+                venueId = await venues.GetVenueIdByJoinCodeAsync(dto.VenueCode.Trim(), ct);
+            }
+            if (venueId is null)
+            {
+                throw new ApiException(ErrorCodes.AuthStaffLoginInvalid,
+                    "Mã quán, mã nhân viên hoặc PIN không đúng.", 401);
+            }
+            var tokens = await service.StaffLoginAsync(venueId.Value, dto.StaffCode, dto.Pin, dto.DeviceName, ct);
             return Results.Ok(tokens);
         });
 

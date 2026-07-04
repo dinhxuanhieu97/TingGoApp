@@ -277,22 +277,45 @@ public static partial class ImportParser
             return (new ProductModifierRowData(productCode, groupCode, Int(row, 3, 0)), $"{productCode}|{groupCode}");
         });
 
+        // --- Translations (MVP: chỉ PRODUCT) ---
+        var seenTranslations = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        ParseSheet(workbook, "Translations", result, jobId, ImportSections.Translations, (row, ctx) =>
+        {
+            var entityType = Str(row, 1).ToUpperInvariant();
+            var entityCode = Str(row, 2).ToUpperInvariant();
+            var locale = Str(row, 3);
+            var name = RequireText(row, 4, "name", 200, ctx);
+            if (entityType != "PRODUCT")
+            {
+                ctx.Info("IMPORT_TRANSLATION_TYPE_NOT_SUPPORTED", "entity_type",
+                    $"entity_type '{entityType}' chưa hỗ trợ dịch (MVP: PRODUCT) — bỏ qua dòng.");
+                return (null, null);
+            }
+            if (name is null) return (null, null);
+            if (locale.Length is < 2 or > 10)
+            {
+                ctx.Error("IMPORT_INVALID_LOCALE", "locale", "locale phải dạng en hoặc en-US.");
+                return (null, null);
+            }
+            if (!Codes(ImportSections.Products).Contains(entityCode)
+                && !existing.ProductSkus.Contains(entityCode))
+            {
+                ctx.Error("IMPORT_LINK_NOT_FOUND", "entity_code",
+                    $"entity_code '{entityCode}' không có trong sheet Products và không tồn tại trong quán.");
+                return (null, null);
+            }
+            if (!seenTranslations.Add($"{entityCode}|{locale}"))
+            {
+                ctx.Error("IMPORT_DUPLICATE_CODE", "entity_code",
+                    $"Bản dịch '{entityCode}' locale '{locale}' bị lặp.");
+                return (null, null);
+            }
+            return (new TranslationRowData(entityCode, locale, name, NullIf(Str(row, 5))),
+                $"{entityCode}|{locale}");
+        });
+
         // --- Cross-sheet: nhóm bắt buộc phải có option; min_select ≤ số option ---
         ValidateGroupOptionCounts(result, jobId);
-
-        // Sheet chưa hỗ trợ
-        foreach (var sheetName in new[] { "Translations" })
-        {
-            if (workbook.Worksheets.TryGetWorksheet(sheetName, out var sheet) && sheet.RowsUsed().Skip(1).Any())
-            {
-                result.Issues.Add(new ImportIssue
-                {
-                    ImportJobId = jobId, Severity = "INFO", Code = "IMPORT_SHEET_NOT_SUPPORTED",
-                    SheetName = sheetName,
-                    Message = $"Sheet {sheetName} chưa được hỗ trợ ở phiên bản này — dữ liệu bị bỏ qua.",
-                });
-            }
-        }
 
         return result;
     }
