@@ -181,6 +181,46 @@ public static class TableEndpoints
             return Results.Ok(new { table.Id, table.Code, qrUrl = QrUrl(configuration, rawToken), rawToken });
         }).RequireAuthorization();
 
+        // MER-03: poster QR hàng loạt — tạo mã mới cho MỌI bàn active (mã cũ hết hiệu lực)
+        endpoints.MapPost("/venues/{venueId:guid}/tables/qr/regenerate-all", async (
+            Guid venueId, ClaimsPrincipal principal, TingGoDbContext db,
+            IMembershipService memberships, IVenueDirectory venues,
+            IConfiguration configuration, CancellationToken ct) =>
+        {
+            await EnsureManagerAsync(memberships, venues, principal, venueId, ct);
+            var tables = await db.Set<DiningTable>()
+                .Where(x => x.VenueId == venueId && x.Status == TableStatus.Active)
+                .OrderBy(x => x.Code)
+                .ToListAsync(ct);
+            if (tables.Count == 0)
+            {
+                throw new ApiException(ErrorCodes.NotFound, "Quán chưa có bàn đang hoạt động.", 404);
+            }
+
+            var tableIds = tables.Select(x => x.Id).ToList();
+            await db.Set<QrCode>()
+                .Where(x => tableIds.Contains(x.TableId) && x.Status == QrStatus.Active)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, QrStatus.Revoked), ct);
+
+            var result = new List<object>();
+            foreach (var table in tables)
+            {
+                var (qr, rawToken) = NewQr(table.Id);
+                db.Add(qr);
+                result.Add(new { table.Id, table.Code, table.Name, qrUrl = QrUrl(configuration, rawToken) });
+            }
+            db.Add(new AuditLog
+            {
+                VenueId = venueId,
+                Action = "qr.regenerate_all",
+                EntityType = "Venue",
+                EntityId = venueId,
+                Detail = $"{tables.Count} bàn",
+            });
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(result);
+        }).RequireAuthorization();
+
         endpoints.MapGet("/tables/{tableId:guid}/qr", async (
             Guid tableId, ClaimsPrincipal principal, TingGoDbContext db,
             IMembershipService memberships, IVenueDirectory venues, CancellationToken ct) =>

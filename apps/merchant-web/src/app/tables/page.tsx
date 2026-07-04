@@ -135,6 +135,53 @@ export default function TablesPage() {
     }
   }
 
+  async function printAllPosters() {
+    if (!venue) return;
+    if (!confirm(
+      "In poster tất cả bàn sẽ TẠO MÃ QR MỚI cho mọi bàn đang hoạt động — mã đã in trước đó hết hiệu lực. Tiếp tục?",
+    )) return;
+    try {
+      const items = await api<{ code: string; name: string; qrUrl: string }[]>(
+        `/venues/${venue.id}/tables/qr/regenerate-all`,
+        { method: "POST" },
+      );
+      const cards = await Promise.all(
+        items.map(async (item) => ({
+          ...item,
+          dataUrl: await QRCode.toDataURL(item.qrUrl, { width: 280, margin: 2 }),
+        })),
+      );
+      const win = window.open("", "_blank");
+      if (!win) return;
+      win.document.write(`<!doctype html><html><head><title>TingGo QR — ${venue.name}</title>
+        <style>
+          body { font-family: sans-serif; margin: 0; }
+          .grid { display: grid; grid-template-columns: 1fr 1fr; }
+          .card { border: 1px dashed #ccc; padding: 24px; text-align: center; page-break-inside: avoid; }
+          .brand { color: #ea580c; font-weight: 800; font-size: 20px; margin: 0; }
+          .venue { color: #555; font-size: 12px; margin: 2px 0 8px; }
+          .table { font-size: 26px; font-weight: 800; margin: 4px 0; }
+          .hint { color: #777; font-size: 12px; margin-top: 6px; }
+        </style></head><body>
+        <div class="grid">
+        ${cards.map((card) => `
+          <div class="card">
+            <p class="brand">TingGo</p>
+            <p class="venue">${venue.name}</p>
+            <p class="table">Bàn ${card.code}</p>
+            <img src="${card.dataUrl}" width="280" height="280" />
+            <p class="hint">Quét mã để xem menu và gọi món</p>
+          </div>`).join("")}
+        </div>
+        <script>window.onload = () => window.print()</script>
+        </body></html>`);
+      win.document.close();
+      await reload(venue);
+    } catch (err) {
+      showError(err);
+    }
+  }
+
   async function showQr(table: DiningTable) {
     try {
       const result = await api<{ code: string; qrUrl: string }>(
@@ -265,7 +312,17 @@ export default function TablesPage() {
         )}
 
         <section className="rounded-2xl bg-white p-4 shadow">
-          <h2 className="mb-3 font-semibold">Bàn ({tables.length})</h2>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="font-semibold">Bàn ({tables.length})</h2>
+            {tables.length > 0 && (
+              <button
+                onClick={printAllPosters}
+                className="rounded-lg bg-orange-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-700"
+              >
+                🖨 In poster tất cả bàn
+              </button>
+            )}
+          </div>
           <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             {tables.map((t) => (
               <li key={t.id} className="rounded-xl border p-3">
