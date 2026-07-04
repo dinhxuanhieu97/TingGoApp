@@ -10,6 +10,15 @@ import type {
   QrContext,
 } from "@/lib/types";
 import { cartTotal } from "@/lib/types";
+import {
+  LANGS,
+  getInitialLang,
+  normalizeSearch,
+  saveLang,
+  t,
+  type Lang,
+  type MsgKey,
+} from "@/lib/i18n";
 
 interface SessionOrders {
   status: string;
@@ -23,15 +32,13 @@ interface SessionOrders {
   }[];
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  submitted: "Đã gửi — chờ quán nhận",
-  confirmed: "Quán đã nhận ✓",
-  preparing: "Đang chuẩn bị 👨‍🍳",
-  ready: "Món đã sẵn sàng 🔔",
-  completed: "Hoàn thành ✓",
-  rejected: "Quán từ chối",
-  cancelled: "Đã hủy",
-};
+const KNOWN_STATUSES = new Set([
+  "submitted", "confirmed", "preparing", "ready", "completed", "rejected", "cancelled",
+]);
+
+function statusLabel(lang: Lang, status: string): string {
+  return KNOWN_STATUSES.has(status) ? t(lang, `status_${status}` as MsgKey) : status;
+}
 
 export default function QrPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params);
@@ -45,32 +52,57 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [lang, setLang] = useState<Lang>("vi");
+
+  useEffect(() => {
+    setLang(getInitialLang());
+  }, []);
+
+  function changeLang(next: Lang) {
+    setLang(next);
+    saveLang(next);
+  }
 
   useEffect(() => {
     (async () => {
       try {
         const qrContext = await publicApi<QrContext>(`/public/q/${token}`);
         setContext(qrContext);
-        // i18n: khách nước ngoài (ngôn ngữ trình duyệt khác quán) → xin bản dịch
-        const browserLang = typeof navigator !== "undefined" ? navigator.language : "";
-        const langParam = browserLang &&
-          !qrContext.venue.defaultLocale.toLowerCase().startsWith(browserLang.split("-")[0].toLowerCase())
-          ? `?lang=${encodeURIComponent(browserLang)}` : "";
-        const [menuData, session] = await Promise.all([
-          publicApi<PublicMenu>(`/public/venues/${qrContext.venue.slug}/menu${langParam}`),
-          publicApi<{ sessionToken: string }>("/public/table-sessions", {
-            body: { qrToken: token },
-          }),
-        ]);
-        setMenu(menuData);
+        const session = await publicApi<{ sessionToken: string }>("/public/table-sessions", {
+          body: { qrToken: token },
+        });
         setSessionToken(session.sessionToken);
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : "Không tải được menu.");
+        setError(err instanceof ApiError ? err.message : t("vi", "menuLoadError"));
       } finally {
         setLoading(false);
       }
     })();
   }, [token]);
+
+  // Menu tải lại theo ngôn ngữ đã chọn (backend trả tên món từ product_translations)
+  useEffect(() => {
+    if (!context) return;
+    let active = true;
+    (async () => {
+      try {
+        const langParam = context.venue.defaultLocale.toLowerCase().startsWith(lang)
+          ? "" : `?lang=${lang}`;
+        const menuData = await publicApi<PublicMenu>(
+          `/public/venues/${context.venue.slug}/menu${langParam}`,
+        );
+        if (active) setMenu(menuData);
+      } catch (err) {
+        if (active && !menu) {
+          setError(err instanceof ApiError ? err.message : t(lang, "menuLoadError"));
+        }
+      }
+    })();
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [context, lang]);
 
   // CUS-06: SignalR real-time + polling 30s dự phòng khi mạng yếu
   const seenEventIds = useRef<Set<string>>(new Set());
@@ -133,10 +165,10 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
       await publicApi("/public/service-requests", {
         body: { sessionToken, type },
       });
-      setServiceNotice(type === "payment" ? "Đã gửi yêu cầu thanh toán 💰" : "Đã gọi nhân viên 🔔");
+      setServiceNotice(type === "payment" ? t(lang, "paymentRequested") : t(lang, "staffCalled"));
       setTimeout(() => setServiceNotice(""), 4000);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Không gửi được yêu cầu.");
+      setError(err instanceof ApiError ? err.message : t(lang, "requestFailed"));
     }
   }
 
@@ -145,14 +177,19 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
     setPaymentModal(true); // CUS-09/ADR-004: hiện QR chuyển khoản nếu quán cấu hình
   }
 
+  // Tìm không phân biệt dấu: "pho" khớp "Phở" (khách nước ngoài gõ không dấu)
   const filteredCategories = useMemo(() => {
     if (!menu) return [];
-    const term = search.trim().toLowerCase();
+    const term = normalizeSearch(search.trim());
     if (!term) return menu.categories;
     return menu.categories
       .map((category) => ({
         ...category,
-        products: category.products.filter((p) => p.name.toLowerCase().includes(term)),
+        products: category.products.filter(
+          (p) =>
+            normalizeSearch(p.name).includes(term) ||
+            (p.description && normalizeSearch(p.description).includes(term)),
+        ),
       }))
       .filter((category) => category.products.length > 0);
   }, [menu, search]);
@@ -182,7 +219,7 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
       );
       setSessionOrders(data);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Gửi order thất bại. Vui lòng thử lại.");
+      setError(err instanceof ApiError ? err.message : t(lang, "orderFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -213,7 +250,7 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
   }
 
   if (loading) {
-    return <main className="p-8 text-center text-gray-500">Đang tải menu...</main>;
+    return <main className="p-8 text-center text-gray-500">{t(lang, "loadingMenu")}</main>;
   }
 
   if (error) {
@@ -229,54 +266,96 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
 
   return (
     <main className="min-h-screen bg-orange-50 pb-24">
-      <header className="bg-white px-4 py-3 shadow-sm">
+      <header className="bg-gradient-to-br from-brand-600 to-orange-500 px-4 pb-4 pt-3 text-white shadow-md">
         <div className="mx-auto max-w-2xl">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-lg font-bold text-orange-600">{context?.venue.name}</p>
-            <p className="text-xs text-gray-500">
-              {context?.area ? `${context.area.name} · ` : ""}Bàn {context?.table.code}
-              {context?.venue.wifiName ? ` · Wi-Fi: ${context.venue.wifiName}` : ""}
-            </p>
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="truncate text-lg font-extrabold">{context?.venue.name}</p>
+              <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
+                <span className="rounded-full bg-white/20 px-2 py-0.5 font-semibold">
+                  {context?.area ? `${context.area.name} · ` : ""}
+                  {t(lang, "table")} {context?.table.code}
+                </span>
+                {context?.venue.wifiName && (
+                  <span className="rounded-full bg-white/20 px-2 py-0.5">
+                    📶 {context.venue.wifiName}
+                  </span>
+                )}
+              </div>
+            </div>
+            {/* Chuyển ngôn ngữ VI/EN/ZH/JA */}
+            <div className="flex shrink-0 rounded-full bg-white/20 p-0.5">
+              {LANGS.map((l) => (
+                <button
+                  key={l.code}
+                  onClick={() => changeLang(l.code)}
+                  aria-label={l.nativeName}
+                  className={`rounded-full px-2 py-1 text-[11px] font-bold transition-colors ${
+                    lang === l.code ? "bg-white text-brand-600" : "text-white/85"
+                  }`}
+                >
+                  {l.label}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="flex gap-2">
+
+          {serviceNotice && (
+            <p className="mt-2 text-xs font-semibold text-emerald-100">{serviceNotice}</p>
+          )}
+
+          {/* Form tìm món: icon + nút xóa, tìm không dấu */}
+          <div className="relative mt-3">
+            <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-gray-400">
+              🔍
+            </span>
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t(lang, "searchPlaceholder")}
+              className="w-full rounded-full border-0 bg-white py-2.5 pl-10 pr-9 text-sm text-gray-800 shadow focus:outline-none focus:ring-2 focus:ring-white/70 [&::-webkit-search-cancel-button]:hidden"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch("")}
+                aria-label={t(lang, "clearSearch")}
+                className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full bg-gray-200 text-xs font-bold text-gray-600"
+              >
+                ×
+              </button>
+            )}
+          </div>
+
+          <div className="mt-2.5 flex gap-2">
             <button
               onClick={() => callStaff("call_staff")}
-              className="rounded-full border border-orange-300 px-3 py-1.5 text-xs font-semibold text-orange-600 hover:bg-orange-50"
+              className="flex-1 rounded-full bg-white/15 px-3 py-2 text-xs font-semibold ring-1 ring-white/40 active:bg-white/30"
             >
-              🔔 Gọi nhân viên
+              {t(lang, "callStaff")}
             </button>
             <button
               onClick={requestPayment}
-              className="rounded-full border border-orange-300 px-3 py-1.5 text-xs font-semibold text-orange-600 hover:bg-orange-50"
+              className="flex-1 rounded-full bg-white/15 px-3 py-2 text-xs font-semibold ring-1 ring-white/40 active:bg-white/30"
             >
-              💰 Thanh toán
+              {t(lang, "requestPayment")}
             </button>
           </div>
-        </div>
-        {serviceNotice && (
-          <p className="mt-1 text-xs font-medium text-green-600">{serviceNotice}</p>
-        )}
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="🔍 Tìm món..."
-          className="mt-2 w-full rounded-full border border-gray-200 bg-gray-50 px-4 py-2 text-sm focus:border-orange-400 focus:outline-none"
-        />
-        <p className="mt-1.5 text-[11px] text-gray-400">
-          {context?.todayHours && (
-            <>
-              <span className={context.isOpenNow ? "font-semibold text-green-600" : "font-semibold text-red-500"}>
-                {context.isOpenNow ? "● Đang mở cửa" : "● Ngoài giờ"}
-              </span>
-              {" "}· Hôm nay: {context.todayHours} ·{" "}
-            </>
-          )}
-          Thanh toán:{" "}
-          {context?.venue.paymentMethods
-            ?.map((m) => (m === "cash" ? "Tiền mặt" : "Chuyển khoản QR"))
-            .join(" · ") ?? "Tiền mặt"}
-        </p>
+
+          <p className="mt-2 text-[11px] text-white/85">
+            {context?.todayHours && (
+              <>
+                <span className={context.isOpenNow ? "font-bold text-emerald-200" : "font-bold text-red-200"}>
+                  {context.isOpenNow ? t(lang, "openNow") : t(lang, "closedNow")}
+                </span>
+                {" "}· {t(lang, "todayLabel")}: {context.todayHours} ·{" "}
+              </>
+            )}
+            {t(lang, "paymentLabel")}:{" "}
+            {context?.venue.paymentMethods
+              ?.map((m) => (m === "cash" ? t(lang, "cash") : t(lang, "bankTransfer")))
+              .join(" · ") ?? t(lang, "cash")}
+          </p>
         </div>
       </header>
 
@@ -289,7 +368,7 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
 
       {sessionOrders && sessionOrders.orders.length > 0 && (
         <section className="mx-auto mt-3 max-w-2xl rounded-2xl bg-white p-3 shadow-sm max-sm:mx-4">
-          <h2 className="mb-2 text-sm font-semibold">Order của bàn</h2>
+          <h2 className="mb-2 text-sm font-semibold">{t(lang, "tableOrders")}</h2>
           <ul className="space-y-2">
             {sessionOrders.orders.map((o) => (
               <li key={o.id} className="flex items-center justify-between text-sm">
@@ -308,13 +387,13 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
                         : "bg-orange-100 text-orange-700"
                   }`}
                 >
-                  {STATUS_LABEL[o.status] ?? o.status}
+                  {statusLabel(lang, o.status)}
                 </span>
               </li>
             ))}
           </ul>
           <p className="mt-2 border-t pt-2 text-right text-sm font-semibold">
-            Tổng bàn: {formatMoney(sessionOrders.totalMinor, currency)}
+            {t(lang, "tableTotal")}: {formatMoney(sessionOrders.totalMinor, currency)}
           </p>
         </section>
       )}
@@ -341,7 +420,7 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
       <div className="mx-auto max-w-2xl space-y-6 p-4">
         {search.trim() && filteredCategories.length === 0 && (
           <p className="py-8 text-center text-sm text-gray-400">
-            Không tìm thấy món nào cho “{search.trim()}”. Thử từ khóa ngắn hơn nhé.
+            {t(lang, "noResults")} “{search.trim()}”. {t(lang, "noResultsHint")}
           </p>
         )}
         {filteredCategories.map((category) => (
@@ -379,7 +458,7 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
                     {product.isAvailable ? (
                       <span className="text-2xl text-orange-500">＋</span>
                     ) : (
-                      <span className="text-xs text-gray-400">Hết hàng</span>
+                      <span className="text-xs text-gray-400">{t(lang, "outOfStock")}</span>
                     )}
                   </button>
                 </li>
@@ -388,6 +467,28 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
           </section>
         ))}
       </div>
+
+      {/* Footer: thông tin quán + branding TingGo */}
+      <footer className="mx-auto max-w-2xl px-4 pb-6 pt-2">
+        <div className="rounded-2xl bg-white p-4 text-center shadow-sm">
+          <p className="font-bold text-gray-800">{context?.venue.name}</p>
+          {context?.todayHours && (
+            <p className="mt-1 text-xs text-gray-500">
+              {t(lang, "footerHours")}: {context.todayHours}
+            </p>
+          )}
+          <p className="mt-1 text-xs text-gray-500">
+            {t(lang, "paymentLabel")}:{" "}
+            {context?.venue.paymentMethods
+              ?.map((m) => (m === "cash" ? t(lang, "cash") : t(lang, "bankTransfer")))
+              .join(" · ") ?? t(lang, "cash")}
+          </p>
+        </div>
+        <p className="mt-4 text-center text-[11px] text-gray-400">
+          Powered by <span className="font-bold text-brand-600">TingGo</span> —{" "}
+          {t(lang, "footerTagline")}
+        </p>
+      </footer>
 
       {itemCount > 0 && (
         <div className="fixed bottom-0 left-0 right-0 z-10 px-4 pb-safe">
@@ -399,7 +500,7 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/25 text-xs font-extrabold">
                 {itemCount}
               </span>
-              Xem giỏ hàng
+              {t(lang, "viewCart")}
             </span>
             <span>{formatMoney(cartTotal(cart), currency)}</span>
           </button>
@@ -411,7 +512,9 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
           onClick={() => setPaymentModal(false)}>
           <div className="w-full max-w-xs rounded-2xl bg-white p-5 text-center"
             onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-bold">Thanh toán — Bàn {context?.table.code}</h3>
+            <h3 className="text-lg font-bold">
+              {t(lang, "paymentModalTitle")} {context?.table.code}
+            </h3>
             {sessionOrders && (
               <p className="mt-1 text-xl font-bold text-orange-600">
                 {formatMoney(sessionOrders.totalMinor, currency)}
@@ -422,19 +525,14 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={`${API_ORIGIN}${context.venue.bankQrImageUrl}`} alt="QR chuyển khoản"
                   className="mx-auto my-3 h-52 w-52 rounded-xl border object-contain" />
-                <p className="text-xs text-gray-500">
-                  Quét QR để chuyển khoản, hoặc thanh toán tiền mặt.
-                  Nhân viên sẽ đến xác nhận với bạn.
-                </p>
+                <p className="text-xs text-gray-500">{t(lang, "scanQrHint")}</p>
               </>
             ) : (
-              <p className="my-4 text-sm text-gray-600">
-                Nhân viên sẽ đến thu tiền tại bàn. Cảm ơn bạn! 🙏
-              </p>
+              <p className="my-4 text-sm text-gray-600">{t(lang, "staffWillCollect")}</p>
             )}
             <button onClick={() => setPaymentModal(false)}
               className="mt-3 w-full rounded-xl bg-orange-600 py-2.5 font-semibold text-white">
-              Đóng
+              {t(lang, "close")}
             </button>
           </div>
         </div>
@@ -444,6 +542,7 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
         <ProductSheet
           product={selected}
           currency={currency}
+          lang={lang}
           onClose={() => setSelected(null)}
           onAdd={addToCart}
         />
@@ -456,7 +555,9 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-gray-300" />
-            <h3 className="mb-3 text-lg font-bold">Giỏ hàng — Bàn {context?.table.code}</h3>
+            <h3 className="mb-3 text-lg font-bold">
+              {t(lang, "cartTitle")} {context?.table.code}
+            </h3>
             <ul className="space-y-3">
               {cart.map((item) => (
                 <li key={item.key} className="flex items-center justify-between gap-2">
@@ -492,7 +593,7 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
               ))}
             </ul>
             <div className="mt-4 flex items-center justify-between border-t pt-3 font-bold">
-              <span>Tổng cộng</span>
+              <span>{t(lang, "totalLabel")}</span>
               <span className="text-orange-600">{formatMoney(cartTotal(cart), currency)}</span>
             </div>
             <button
@@ -500,7 +601,7 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
               disabled={submitting || !sessionToken}
               className="mt-3 w-full rounded-xl bg-orange-600 py-3 font-semibold text-white disabled:opacity-50"
             >
-              {submitting ? "Đang gửi..." : "Gửi order"}
+              {submitting ? t(lang, "submittingOrder") : t(lang, "submitOrder")}
             </button>
           </div>
         </div>
@@ -509,17 +610,15 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
   );
 }
 
-function ProductSheet({
-  product,
-  currency,
-  onClose,
-  onAdd,
-}: {
+interface ProductSheetProps {
   product: PublicProduct;
   currency: string;
+  lang: Lang;
   onClose: () => void;
   onAdd: (item: CartItem) => void;
-}) {
+}
+
+function ProductSheet({ product, currency, lang, onClose, onAdd }: ProductSheetProps) {
   const defaultVariant = product.variants.find((v) => v.isDefault) ?? product.variants[0];
   const [variantId, setVariantId] = useState<string | undefined>(defaultVariant?.id);
   const [optionIds, setOptionIds] = useState<string[]>([]);
@@ -578,7 +677,7 @@ function ProductSheet({
 
         {product.variants.length > 0 && (
           <div className="mt-3">
-            <p className="mb-1 text-sm font-semibold">Size</p>
+            <p className="mb-1 text-sm font-semibold">{t(lang, "size")}</p>
             <div className="flex flex-wrap gap-2">
               {product.variants.map((v) => (
                 <button
@@ -606,7 +705,7 @@ function ProductSheet({
               <p className="mb-1 text-sm font-semibold">
                 {group.name}
                 <span className="ml-1 text-xs font-normal text-gray-400">
-                  (chọn tối đa {group.maxSelect})
+                  ({t(lang, "maxSelect")} {group.maxSelect})
                 </span>
               </p>
               <div className="flex flex-wrap gap-2">
@@ -633,7 +732,7 @@ function ProductSheet({
         <input
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          placeholder="Ghi chú (VD: ít đá)"
+          placeholder={t(lang, "notePlaceholder")}
           maxLength={200}
           className="mt-3 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none"
         />
@@ -658,7 +757,7 @@ function ProductSheet({
             onClick={confirm}
             className="flex-1 rounded-xl bg-orange-600 py-3 font-semibold text-white"
           >
-            Thêm · {formatMoney(unitPrice * quantity, currency)}
+            {t(lang, "addLabel")} · {formatMoney(unitPrice * quantity, currency)}
           </button>
         </div>
       </div>

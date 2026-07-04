@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, ApiError, clearTokens, getTokens } from "@/lib/api";
 import type { Category, Membership, Menu, Product, Venue } from "@/lib/types";
@@ -55,6 +55,15 @@ interface MenuDetail extends Menu {
   categories: Category[];
 }
 
+/** Chuẩn hóa tìm kiếm: thường hóa + bỏ dấu tiếng Việt */
+function normalizeSearch(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/đ/g, "d");
+}
+
 export default function MenuPage() {
   const router = useRouter();
   const [venues, setVenues] = useState<Venue[]>([]);
@@ -62,6 +71,14 @@ export default function MenuPage() {
   const [menus, setMenus] = useState<Menu[]>([]);
   const [menu, setMenu] = useState<MenuDetail | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
+  const [productSearch, setProductSearch] = useState("");
+
+  // Tìm không phân biệt dấu ("pho" khớp "Phở")
+  const visibleProducts = useMemo(() => {
+    const term = normalizeSearch(productSearch.trim());
+    if (!term) return products;
+    return products.filter((p) => normalizeSearch(p.name).includes(term));
+  }, [products, productSearch]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
@@ -459,7 +476,31 @@ export default function MenuPage() {
 
         {/* Món */}
         <section className="rounded-2xl bg-white p-4 shadow">
-          <h2 className="mb-3 font-semibold">Món ({products.length})</h2>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="font-semibold">Món ({products.length})</h2>
+            {/* Form tìm món: lọc theo tên, không phân biệt dấu */}
+            <div className="relative">
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+                🔍
+              </span>
+              <input
+                type="search"
+                value={productSearch}
+                onChange={(e) => setProductSearch(e.target.value)}
+                placeholder="Tìm món..."
+                className="w-44 rounded-full border border-gray-300 bg-gray-50 py-1.5 pl-8 pr-7 text-sm focus:border-orange-400 focus:outline-none sm:w-56 [&::-webkit-search-cancel-button]:hidden"
+              />
+              {productSearch && (
+                <button
+                  onClick={() => setProductSearch("")}
+                  aria-label="Xóa tìm kiếm"
+                  className="absolute right-1.5 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full bg-gray-200 text-[10px] font-bold text-gray-600"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          </div>
           {menu && menu.categories.length > 0 && venue && (
             <ProductForm
               categories={menu.categories}
@@ -469,7 +510,7 @@ export default function MenuPage() {
             />
           )}
           <ul className="mt-4 grid gap-2 md:grid-cols-2">
-            {products.map((p) => (
+            {visibleProducts.map((p) => (
               <li key={p.id} className="flex items-center gap-3 rounded-xl border p-3">
                 {p.imageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -515,6 +556,11 @@ export default function MenuPage() {
           {products.length === 0 && (
             <p className="py-8 text-center text-sm text-gray-400">
               Chưa có món nào. Tạo danh mục rồi thêm món đầu tiên nhé.
+            </p>
+          )}
+          {products.length > 0 && visibleProducts.length === 0 && (
+            <p className="py-8 text-center text-sm text-gray-400">
+              Không tìm thấy món nào cho “{productSearch.trim()}”.
             </p>
           )}
         </section>
