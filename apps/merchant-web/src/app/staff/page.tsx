@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, ApiError, getTokens } from "@/lib/api";
 import type { Membership, Venue } from "@/lib/types";
+import MerchantNav from "@/components/MerchantNav";
 
 interface StaffMember {
   id: string;
@@ -104,22 +105,9 @@ export default function StaffPage() {
 
   return (
     <main className="min-h-screen bg-orange-50">
-      <header className="flex items-center justify-between border-b bg-white px-6 py-3">
-        <div className="flex items-center gap-4">
-          <span className="text-xl font-bold text-orange-600">TingGo</span>
-          <nav className="flex gap-3 text-sm">
-            <a href="/menu" className="text-gray-500 hover:text-orange-600">Menu</a>
-            <a href="/tables" className="text-gray-500 hover:text-orange-600">Bàn & QR</a>
-            <a href="/orders" className="text-gray-500 hover:text-orange-600">Order</a>
-            <a href="/reports" className="text-gray-500 hover:text-orange-600">Báo cáo</a>
-            <span className="font-semibold text-orange-600">Nhân viên</span>
-            <a href="/settings" className="text-gray-500 hover:text-orange-600">Cài đặt</a>
-          </nav>
-        </div>
-        <span className="text-sm text-gray-500">{venue?.name}</span>
-      </header>
+      <MerchantNav venueName={venue?.name} />
 
-      <div className="p-6">
+      <div className="p-3 sm:p-6">
         {error && (
           <div className="mb-4 rounded-lg bg-red-100 px-4 py-2 text-sm text-red-700">
             {error} <button onClick={() => setError("")} className="ml-1 font-bold">×</button>

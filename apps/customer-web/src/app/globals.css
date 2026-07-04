@@ -1,8 +1,9 @@
 @import "tailwindcss";
 
+/* ============ TingGo Design Tokens (docs/design-system.md) ============ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fff7ed; /* brand-50 làm nền app */
+  --foreground: #1c1917;
 }
 
 @theme inline {
@@ -10,17 +11,61 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  /* Brand — cam TingGo */
+  --color-brand-50: #fff7ed;
+  --color-brand-100: #ffedd5;
+  --color-brand-200: #fed7aa;
+  --color-brand-300: #fdba74;
+  --color-brand-500: #f97316;
+  --color-brand-600: #ea580c;
+  --color-brand-700: #c2410c;
+  --color-brand-800: #9a3412;
+
+  /* Semantic */
+  --color-success: #16a34a;
+  --color-success-bg: #dcfce7;
+  --color-warning: #d97706;
+  --color-warning-bg: #fef3c7;
+  --color-danger: #dc2626;
+  --color-danger-bg: #fee2e2;
+
+  /* Radius scale */
+  --radius-card: 1rem;
+  --radius-sheet: 1.25rem;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Safe area cho iPhone tai thỏ — nút giỏ hàng & sheet không bị home bar đè */
+.pb-safe {
+  padding-bottom: max(env(safe-area-inset-bottom), 1rem);
+}
+.mb-safe {
+  margin-bottom: env(safe-area-inset-bottom);
+}
+
+/* Chip bar cuộn ngang không hiện scrollbar */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Skeleton loading */
+@keyframes tg-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+.tg-skeleton {
+  animation: tg-pulse 1.4s ease-in-out infinite;
+  background: #f3e8dd;
+  border-radius: 0.75rem;
 }

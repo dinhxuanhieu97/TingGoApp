@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { api, ApiError, getTokens } from "@/lib/api";
 import type { Membership, Venue } from "@/lib/types";
 import { formatMoney } from "@/lib/types";
+import MerchantNav from "@/components/MerchantNav";
 
 interface TodayReport {
   date: string;
@@ -71,24 +72,13 @@ export default function ReportsPage() {
 
   return (
     <main className="min-h-screen bg-orange-50">
-      <header className="flex items-center justify-between border-b bg-white px-6 py-3">
-        <div className="flex items-center gap-4">
-          <span className="text-xl font-bold text-orange-600">TingGo</span>
-          <nav className="flex gap-3 text-sm">
-            <a href="/menu" className="text-gray-500 hover:text-orange-600">Menu</a>
-            <a href="/tables" className="text-gray-500 hover:text-orange-600">Bàn & QR</a>
-            <a href="/orders" className="text-gray-500 hover:text-orange-600">Order</a>
-            <span className="font-semibold text-orange-600">Báo cáo</span>
-          </nav>
-        </div>
-        <span className="text-sm text-gray-500">{venue?.name}</span>
-      </header>
+      <MerchantNav venueName={venue?.name} />
 
       {error && (
         <div className="mx-6 mt-4 rounded-lg bg-red-100 px-4 py-2 text-sm text-red-700">{error}</div>
       )}
 
-      <div className="p-6">
+      <div className="p-3 sm:p-6">
         {today && (
           <section className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Card title="Doanh thu đã thu hôm nay" value={formatMoney(today.revenuePaidMinor, currency)} />

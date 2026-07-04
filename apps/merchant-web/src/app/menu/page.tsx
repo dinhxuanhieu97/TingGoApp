@@ -6,6 +6,7 @@ import { api, ApiError, clearTokens, getTokens } from "@/lib/api";
 import type { Category, Membership, Menu, Product, Venue } from "@/lib/types";
 import { formatMoney } from "@/lib/types";
 import ProductEditModal from "@/components/ProductEditModal";
+import MerchantNav from "@/components/MerchantNav";
 
 interface ImportSummary {
   importId: string;
@@ -274,29 +275,14 @@ export default function MenuPage() {
 
   return (
     <main className="min-h-screen bg-orange-50">
-      <header className="flex items-center justify-between border-b bg-white px-6 py-3">
-        <div className="flex items-center gap-4">
-          <span className="text-xl font-bold text-orange-600">TingGo</span>
-          <nav className="flex gap-3 text-sm">
-            <span className="font-semibold text-orange-600">Menu</span>
-            <a href="/tables" className="text-gray-500 hover:text-orange-600">
-              Bàn & QR
-            </a>
-            <a href="/orders" className="text-gray-500 hover:text-orange-600">
-              Order
-            </a>
-            <a href="/staff" className="text-gray-500 hover:text-orange-600">
-              Nhân viên
-            </a>
-            <a href="/settings" className="text-gray-500 hover:text-orange-600">
-              Cài đặt
-            </a>
-          </nav>
-          {venues.length > 0 && (
+      <MerchantNav
+        venueName={venue?.name}
+        right={
+          venues.length > 1 ? (
             <select
               value={venue?.id ?? ""}
               onChange={(e) => setVenue(venues.find((v) => v.id === e.target.value) ?? null)}
-              className="rounded-lg border border-gray-300 px-2 py-1 text-sm"
+              className="max-w-32 rounded-lg border border-gray-300 px-2 py-1 text-xs sm:max-w-none sm:text-sm"
             >
               {venues.map((v) => (
                 <option key={v.id} value={v.id}>
@@ -304,15 +290,12 @@ export default function MenuPage() {
                 </option>
               ))}
             </select>
-          )}
-        </div>
-        <button onClick={logout} className="text-sm text-gray-500 hover:underline">
-          Đăng xuất
-        </button>
-      </header>
+          ) : undefined
+        }
+      />
 
       {error && (
-        <div className="mx-6 mt-4 rounded-lg bg-red-100 px-4 py-2 text-sm text-red-700">
+        <div className="mx-3 mt-3 rounded-lg bg-danger-bg px-4 py-2 text-sm text-danger sm:mx-6">
           {error}
           <button onClick={() => setError("")} className="ml-2 font-bold">
             ×
@@ -320,7 +303,7 @@ export default function MenuPage() {
         </div>
       )}
 
-      <div className="mx-6 mt-4 flex flex-wrap items-center gap-2 rounded-2xl bg-white p-3 shadow">
+      <div className="mx-3 mt-3 flex flex-wrap items-center gap-2 rounded-2xl bg-white p-3 shadow sm:mx-6 sm:mt-4">
         <span className="text-sm font-semibold">Nhập dữ liệu nhanh:</span>
         <button
           onClick={() => venue && downloadAuthorizedFile(`/venues/${venue.id}/imports/template`, "TingGo_Import_Template.xlsx")}
@@ -348,7 +331,7 @@ export default function MenuPage() {
       </div>
 
       {importSummary && (
-        <div className="mx-6 mt-3 rounded-2xl bg-white p-4 text-sm shadow ring-1 ring-orange-200">
+        <div className="mx-3 mt-3 rounded-2xl bg-white p-4 text-sm shadow ring-1 ring-orange-200 sm:mx-6">
           <div className="flex items-center justify-between">
             <p className="font-semibold">
               Xem trước import — {importSummary.totalRows} dòng
@@ -406,7 +389,7 @@ export default function MenuPage() {
       )}
 
       {commitOutcome && (
-        <div className="mx-6 mt-3 rounded-2xl bg-green-50 p-4 text-sm shadow ring-1 ring-green-200">
+        <div className="mx-3 mt-3 rounded-2xl bg-green-50 p-4 text-sm shadow ring-1 ring-green-200 sm:mx-6">
           <p className="font-semibold text-green-800">✓ Import hoàn tất</p>
           <p className="mt-1">
             {commitOutcome.areasCreated} khu vực · {commitOutcome.tablesCreated} bàn (đã tạo QR) ·{" "}
@@ -423,7 +406,7 @@ export default function MenuPage() {
         </div>
       )}
 
-      <div className="grid gap-6 p-6 lg:grid-cols-[300px_1fr]">
+      <div className="grid gap-3 p-3 sm:gap-6 sm:p-6 lg:grid-cols-[300px_1fr]">
         {/* Menu + danh mục */}
         <section className="rounded-2xl bg-white p-4 shadow">
           <div className="mb-3 flex items-center justify-between">

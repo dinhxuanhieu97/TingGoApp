@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, ApiError, getTokens } from "@/lib/api";
 import type { Membership } from "@/lib/types";
+import MerchantNav from "@/components/MerchantNav";
 
 interface VenueDetail {
   id: string;
@@ -125,22 +126,9 @@ export default function SettingsPage() {
 
   return (
     <main className="min-h-screen bg-orange-50">
-      <header className="flex items-center justify-between border-b bg-white px-6 py-3">
-        <div className="flex items-center gap-4">
-          <span className="text-xl font-bold text-orange-600">TingGo</span>
-          <nav className="flex gap-3 text-sm">
-            <a href="/menu" className="text-gray-500 hover:text-orange-600">Menu</a>
-            <a href="/tables" className="text-gray-500 hover:text-orange-600">Bàn & QR</a>
-            <a href="/orders" className="text-gray-500 hover:text-orange-600">Order</a>
-            <a href="/reports" className="text-gray-500 hover:text-orange-600">Báo cáo</a>
-            <a href="/staff" className="text-gray-500 hover:text-orange-600">Nhân viên</a>
-            <span className="font-semibold text-orange-600">Cài đặt</span>
-          </nav>
-        </div>
-        <span className="text-sm text-gray-500">{venue?.name}</span>
-      </header>
+      <MerchantNav venueName={venue?.name} />
 
-      <div className="mx-auto max-w-xl p-6">
+      <div className="mx-auto max-w-xl p-3 sm:p-6">
         {error && <p className="mb-3 rounded-lg bg-red-100 px-4 py-2 text-sm text-red-700">{error}</p>}
         {notice && <p className="mb-3 rounded-lg bg-green-100 px-4 py-2 text-sm text-green-800">{notice}</p>}
 

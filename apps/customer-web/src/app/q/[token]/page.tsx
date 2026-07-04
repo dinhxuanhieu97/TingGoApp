@@ -229,7 +229,8 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
 
   return (
     <main className="min-h-screen bg-orange-50 pb-24">
-      <header className="sticky top-0 z-10 bg-white px-4 py-3 shadow-sm">
+      <header className="bg-white px-4 py-3 shadow-sm">
+        <div className="mx-auto max-w-2xl">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-lg font-bold text-orange-600">{context?.venue.name}</p>
@@ -276,6 +277,7 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
             ?.map((m) => (m === "cash" ? "Tiền mặt" : "Chuyển khoản QR"))
             .join(" · ") ?? "Tiền mặt"}
         </p>
+        </div>
       </header>
 
       {error && (
@@ -286,7 +288,7 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
       )}
 
       {sessionOrders && sessionOrders.orders.length > 0 && (
-        <section className="mx-4 mt-3 rounded-xl bg-white p-3 shadow-sm">
+        <section className="mx-auto mt-3 max-w-2xl rounded-2xl bg-white p-3 shadow-sm max-sm:mx-4">
           <h2 className="mb-2 text-sm font-semibold">Order của bàn</h2>
           <ul className="space-y-2">
             {sessionOrders.orders.map((o) => (
@@ -317,14 +319,33 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
         </section>
       )}
 
-      <div className="space-y-6 p-4">
+      {/* Chip danh mục cuộn ngang — bấm nhảy tới section (pattern GrabFood) */}
+      {!search.trim() && (menu?.categories.length ?? 0) > 1 && (
+        <div className="no-scrollbar sticky top-0 z-[5] -mt-px flex gap-2 overflow-x-auto bg-brand-50/95 px-4 py-2 backdrop-blur">
+          {menu?.categories.map((category) => (
+            <button
+              key={category.id}
+              onClick={() =>
+                document.getElementById(`cat-${category.id}`)?.scrollIntoView({
+                  behavior: "smooth", block: "start",
+                })
+              }
+              className="shrink-0 rounded-full border border-brand-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-brand-800 active:bg-brand-100"
+            >
+              {category.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="mx-auto max-w-2xl space-y-6 p-4">
         {search.trim() && filteredCategories.length === 0 && (
           <p className="py-8 text-center text-sm text-gray-400">
-            Không tìm thấy món nào cho “{search.trim()}”.
+            Không tìm thấy món nào cho “{search.trim()}”. Thử từ khóa ngắn hơn nhé.
           </p>
         )}
         {filteredCategories.map((category) => (
-          <section key={category.id}>
+          <section key={category.id} id={`cat-${category.id}`} className="scroll-mt-14">
             <h2 className="mb-2 font-semibold">{category.name}</h2>
             <ul className="space-y-2">
               {category.products.map((product) => (
@@ -332,7 +353,7 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
                   <button
                     disabled={!product.isAvailable}
                     onClick={() => setSelected(product)}
-                    className="flex w-full items-center gap-3 rounded-xl bg-white p-3 text-left shadow-sm disabled:opacity-50"
+                    className="flex w-full items-center gap-3 rounded-2xl bg-white p-3 text-left shadow-sm transition-transform active:scale-[0.99] disabled:opacity-50"
                   >
                     {product.imageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -369,13 +390,20 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
       </div>
 
       {itemCount > 0 && (
-        <button
-          onClick={() => setCartOpen(true)}
-          className="fixed bottom-4 left-4 right-4 flex items-center justify-between rounded-2xl bg-orange-600 px-5 py-3 font-semibold text-white shadow-lg"
-        >
-          <span>🛒 {itemCount} món</span>
-          <span>{formatMoney(cartTotal(cart), currency)}</span>
-        </button>
+        <div className="fixed bottom-0 left-0 right-0 z-10 px-4 pb-safe">
+          <button
+            onClick={() => setCartOpen(true)}
+            className="mx-auto flex w-full max-w-2xl items-center justify-between rounded-2xl bg-brand-600 px-5 py-3.5 font-bold text-white shadow-xl shadow-brand-600/30 active:bg-brand-700"
+          >
+            <span className="flex items-center gap-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/25 text-xs font-extrabold">
+                {itemCount}
+              </span>
+              Xem giỏ hàng
+            </span>
+            <span>{formatMoney(cartTotal(cart), currency)}</span>
+          </button>
+        </div>
       )}
 
       {paymentModal && (
@@ -424,9 +452,10 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
       {cartOpen && (
         <div className="fixed inset-0 z-20 flex items-end bg-black/40" onClick={() => setCartOpen(false)}>
           <div
-            className="max-h-[80vh] w-full overflow-y-auto rounded-t-2xl bg-white p-4"
+            className="max-h-[80vh] w-full overflow-y-auto rounded-t-3xl bg-white p-4 pb-safe"
             onClick={(e) => e.stopPropagation()}
           >
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-gray-300" />
             <h3 className="mb-3 text-lg font-bold">Giỏ hàng — Bàn {context?.table.code}</h3>
             <ul className="space-y-3">
               {cart.map((item) => (
@@ -540,9 +569,10 @@ function ProductSheet({
   return (
     <div className="fixed inset-0 z-20 flex items-end bg-black/40" onClick={onClose}>
       <div
-        className="max-h-[85vh] w-full overflow-y-auto rounded-t-2xl bg-white p-4"
+        className="max-h-[85vh] w-full overflow-y-auto rounded-t-3xl bg-white p-4 pb-safe"
         onClick={(e) => e.stopPropagation()}
       >
+        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-gray-300" />
         <h3 className="text-lg font-bold">{product.name}</h3>
         {product.description && <p className="text-sm text-gray-500">{product.description}</p>}
 

@@ -6,6 +6,7 @@ import { HubConnectionBuilder, HubConnection, LogLevel } from "@microsoft/signal
 import { api, ApiError, getTokens } from "@/lib/api";
 import type { Membership, Venue } from "@/lib/types";
 import { formatMoney } from "@/lib/types";
+import MerchantNav from "@/components/MerchantNav";
 
 interface OrderView {
   id: string;
@@ -194,34 +195,25 @@ export default function OrdersPage() {
 
   return (
     <main className="min-h-screen bg-orange-50">
-      <header className="flex items-center justify-between border-b bg-white px-6 py-3">
-        <div className="flex items-center gap-4">
-          <span className="text-xl font-bold text-orange-600">TingGo</span>
-          <nav className="flex gap-3 text-sm">
-            <a href="/menu" className="text-gray-500 hover:text-orange-600">Menu</a>
-            <a href="/tables" className="text-gray-500 hover:text-orange-600">Bàn & QR</a>
-            <span className="font-semibold text-orange-600">Order</span>
-            <a href="/reports" className="text-gray-500 hover:text-orange-600">Báo cáo</a>
-          </nav>
-        </div>
-        <div className="flex items-center gap-3 text-sm">
-          <span className={`flex items-center gap-1 ${connected ? "text-green-600" : "text-gray-400"}`}>
-            <span className={`h-2 w-2 rounded-full ${connected ? "bg-green-500" : "bg-gray-400"}`} />
+      <MerchantNav
+        venueName={venue?.name}
+        right={
+          <span className={`flex items-center gap-1 text-xs sm:text-sm ${connected ? "text-success" : "text-gray-400"}`}>
+            <span className={`h-2 w-2 rounded-full ${connected ? "bg-success" : "bg-gray-400"}`} />
             {connected ? "Real-time" : "Đang kết nối..."}
           </span>
-          <span className="text-gray-500">{venue?.name}</span>
-        </div>
-      </header>
+        }
+      />
 
       {error && (
-        <div className="mx-6 mt-4 rounded-lg bg-red-100 px-4 py-2 text-sm text-red-700">
+        <div className="mx-3 mt-3 rounded-lg bg-danger-bg px-4 py-2 text-sm text-danger sm:mx-6">
           {error}
           <button onClick={() => setError("")} className="ml-2 font-bold">×</button>
         </div>
       )}
 
       {serviceRequests.length > 0 && (
-        <div className="mx-6 mt-4 rounded-2xl bg-amber-50 p-3 shadow ring-1 ring-amber-200">
+        <div className="mx-3 mt-3 rounded-2xl bg-warning-bg p-3 shadow ring-1 ring-amber-200 sm:mx-6">
           <h2 className="mb-2 text-sm font-semibold text-amber-800">
             Yêu cầu từ khách ({serviceRequests.length})
           </h2>
@@ -262,11 +254,15 @@ export default function OrdersPage() {
         </div>
       )}
 
-      <div className="grid gap-4 p-6 md:grid-cols-2 xl:grid-cols-4">
+      {/* Tablet/mobile: cuộn ngang snap từng cột; desktop: 4 cột */}
+      <div className="no-scrollbar snap-x-mandatory flex gap-3 overflow-x-auto p-3 sm:p-4 xl:grid xl:grid-cols-4 xl:gap-4 xl:overflow-visible xl:p-6">
         {COLUMNS.map((column) => {
           const columnOrders = orders.filter((o) => o.view.status === column.status);
           return (
-            <section key={column.status} className="rounded-2xl bg-white p-3 shadow">
+            <section
+              key={column.status}
+              className="snap-start-always w-[85vw] shrink-0 rounded-2xl bg-white p-3 shadow sm:w-[46vw] lg:w-[31vw] xl:w-auto xl:shrink"
+            >
               <h2 className="mb-2 flex items-center justify-between font-semibold">
                 {column.title}
                 <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs text-orange-700">

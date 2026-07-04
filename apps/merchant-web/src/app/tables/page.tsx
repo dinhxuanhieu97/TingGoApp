@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import QRCode from "qrcode";
 import { api, ApiError, getTokens } from "@/lib/api";
 import type { Membership, Venue } from "@/lib/types";
+import MerchantNav from "@/components/MerchantNav";
 
 interface Area {
   id: string;
@@ -214,24 +215,10 @@ export default function TablesPage() {
 
   return (
     <main className="min-h-screen bg-orange-50">
-      <header className="flex items-center justify-between border-b bg-white px-6 py-3">
-        <div className="flex items-center gap-4">
-          <span className="text-xl font-bold text-orange-600">TingGo</span>
-          <nav className="flex gap-3 text-sm">
-            <a href="/menu" className="text-gray-500 hover:text-orange-600">
-              Menu
-            </a>
-            <span className="font-semibold text-orange-600">Bàn & QR</span>
-            <a href="/orders" className="text-gray-500 hover:text-orange-600">
-              Order
-            </a>
-          </nav>
-        </div>
-        <span className="text-sm text-gray-500">{venue?.name}</span>
-      </header>
+      <MerchantNav venueName={venue?.name} />
 
       {error && (
-        <div className="mx-6 mt-4 rounded-lg bg-red-100 px-4 py-2 text-sm text-red-700">
+        <div className="mx-3 mt-3 rounded-lg bg-danger-bg px-4 py-2 text-sm text-danger sm:mx-6">
           {error}
           <button onClick={() => setError("")} className="ml-2 font-bold">
             ×
@@ -239,7 +226,7 @@ export default function TablesPage() {
         </div>
       )}
 
-      <div className="p-6">
+      <div className="p-3 sm:p-6">
         <section className="mb-6 rounded-2xl bg-white p-4 shadow">
           <h2 className="mb-3 font-semibold">Khu vực</h2>
           <div className="flex flex-wrap items-center gap-2">
