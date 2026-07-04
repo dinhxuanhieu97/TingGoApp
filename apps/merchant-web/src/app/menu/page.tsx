@@ -5,6 +5,19 @@ import { useRouter } from "next/navigation";
 import { api, ApiError, clearTokens, getTokens } from "@/lib/api";
 import type { Category, Membership, Menu, Product, Venue } from "@/lib/types";
 import { formatMoney } from "@/lib/types";
+import ProductEditModal from "@/components/ProductEditModal";
+
+interface ImportResult {
+  menuCreated: boolean;
+  menuPublished: boolean;
+  categoriesCreated: number;
+  productsCreated: number;
+  productsSkipped: number;
+  areasCreated: number;
+  tablesCreated: number;
+  tablesSkipped: number;
+  errors: string[];
+}
 
 interface MenuDetail extends Menu {
   categories: Category[];
@@ -19,9 +32,46 @@ export default function MenuPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const [importing, setImporting] = useState(false);
 
   const showError = (err: unknown) =>
     setError(err instanceof ApiError ? err.message : "Đã xảy ra lỗi.");
+
+  const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5080/api/v1";
+
+  async function downloadTemplate() {
+    if (!venue) return;
+    const res = await fetch(`${apiBase}/venues/${venue.id}/import/template`, {
+      headers: { Authorization: `Bearer ${getTokens()?.accessToken}` },
+    });
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "tinggo-mau-nhap-lieu.xlsx";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function importFile(file: File) {
+    if (!venue) return;
+    setImporting(true);
+    setError("");
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const result = await api<ImportResult>(`/venues/${venue.id}/import`, { formData });
+      setImportResult(result);
+      await loadMenus(venue);
+      setProducts(await api<Product[]>(`/venues/${venue.id}/products`));
+    } catch (err) {
+      showError(err);
+    } finally {
+      setImporting(false);
+    }
+  }
 
   // Nạp venue từ memberships
   useEffect(() => {
@@ -177,6 +227,52 @@ export default function MenuPage() {
         </div>
       )}
 
+      <div className="mx-6 mt-4 flex flex-wrap items-center gap-2 rounded-2xl bg-white p-3 shadow">
+        <span className="text-sm font-semibold">Nhập dữ liệu nhanh:</span>
+        <button onClick={downloadTemplate} className="rounded-lg border border-orange-400 px-3 py-1.5 text-sm text-orange-600 hover:bg-orange-50">
+          ⬇ Tải file mẫu Excel
+        </button>
+        <label className="cursor-pointer rounded-lg bg-orange-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-orange-700">
+          {importing ? "Đang nhập..." : "⬆ Nhập từ Excel"}
+          <input
+            type="file"
+            accept=".xlsx"
+            className="hidden"
+            disabled={importing}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) importFile(f);
+              e.target.value = "";
+            }}
+          />
+        </label>
+        <span className="text-xs text-gray-400">Món + danh mục + size + topping + khu vực + bàn trong 1 file</span>
+      </div>
+
+      {importResult && (
+        <div className="mx-6 mt-3 rounded-2xl bg-green-50 p-4 text-sm shadow ring-1 ring-green-200">
+          <p className="font-semibold text-green-800">Kết quả nhập:</p>
+          <p>
+            {importResult.categoriesCreated} danh mục, {importResult.productsCreated} món
+            {importResult.productsSkipped > 0 && ` (bỏ qua ${importResult.productsSkipped} món trùng)`},{" "}
+            {importResult.areasCreated} khu vực, {importResult.tablesCreated} bàn
+            {importResult.tablesSkipped > 0 && ` (bỏ qua ${importResult.tablesSkipped} bàn trùng mã)`}.
+            {importResult.menuPublished && " Menu đã được công bố."}
+          </p>
+          {importResult.tablesCreated > 0 && (
+            <p className="mt-1">
+              → Sang trang <a href="/tables" className="font-semibold text-orange-600 underline">Bàn & QR</a> để in QR cho bàn mới.
+            </p>
+          )}
+          {importResult.errors.length > 0 && (
+            <ul className="mt-1 list-inside list-disc text-red-600">
+              {importResult.errors.map((e, i) => <li key={i}>{e}</li>)}
+            </ul>
+          )}
+          <button onClick={() => setImportResult(null)} className="mt-2 text-xs text-gray-500 underline">Đóng</button>
+        </div>
+      )}
+
       <div className="grid gap-6 p-6 lg:grid-cols-[300px_1fr]">
         {/* Menu + danh mục */}
         <section className="rounded-2xl bg-white p-4 shadow">
@@ -268,6 +364,12 @@ export default function MenuPage() {
                 >
                   {p.isAvailable ? "Còn bán" : "Hết hàng"}
                 </button>
+                <button
+                  onClick={() => setEditingProductId(p.id)}
+                  className="rounded-full border border-gray-300 px-3 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-50"
+                >
+                  Sửa
+                </button>
               </li>
             ))}
           </ul>
@@ -278,6 +380,16 @@ export default function MenuPage() {
           )}
         </section>
       </div>
+
+      {editingProductId && venue && menu && (
+        <ProductEditModal
+          productId={editingProductId}
+          venueId={venue.id}
+          categories={menu.categories}
+          onClose={() => setEditingProductId(null)}
+          onSaved={refreshProducts}
+        />
+      )}
     </main>
   );
 }

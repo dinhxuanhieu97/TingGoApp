@@ -151,6 +151,7 @@ foreach (var module in ModuleRegistry.Modules)
     module.MapEndpoints(apiV1);
 }
 TingGo.Api.Endpoints.ReportEndpoints.Map(apiV1);
+TingGo.Api.Endpoints.ImportEndpoints.Map(apiV1);
 
 app.Run();
 
