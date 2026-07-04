@@ -303,7 +303,7 @@ export default function MenuPage() {
           {importing ? "Đang nhập..." : "⬆ Nhập từ Excel"}
           <input
             type="file"
-            accept=".xlsx"
+            accept=".xlsx,.zip"
             className="hidden"
             disabled={importing}
             onChange={(e) => {
@@ -313,7 +313,9 @@ export default function MenuPage() {
             }}
           />
         </label>
-        <span className="text-xs text-gray-400">Quán + khu vực + bàn + menu + size + topping trong 1 file — xem trước rồi mới ghi</span>
+        <span className="text-xs text-gray-400">
+          .xlsx hoặc .zip (Excel + thư mục images/ chứa ảnh món) — xem trước rồi mới ghi
+        </span>
       </div>
 
       {importSummary && (

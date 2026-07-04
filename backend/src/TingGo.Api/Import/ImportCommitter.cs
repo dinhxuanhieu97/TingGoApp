@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using TingGo.Infrastructure.Persistence;
 using TingGo.Modules.Catalog.Domain;
+using TingGo.Modules.Catalog.Services;
 using TingGo.Modules.Venues.Domain;
 using TingGo.SharedKernel.Errors;
 
@@ -19,10 +20,11 @@ public static class ImportCommitter
     public sealed record CommitOutcome(
         int AreasCreated, int TablesCreated, int CategoriesCreated, int ProductsCreated,
         int VariantsCreated, int GroupsCreated, int OptionsCreated, int LinksCreated,
-        bool MenuCreated, List<object> NewTables);
+        bool MenuCreated, int ImagesAttached, int ImagesFailed, List<object> NewTables);
 
     public static async Task<CommitOutcome> CommitAsync(
-        TingGoDbContext db, ImportJob job, Guid actorMembershipId, string currencyCode, CancellationToken ct)
+        TingGoDbContext db, ImportJob job, Guid actorMembershipId, string currencyCode,
+        IImageStorage imageStorage, CancellationToken ct)
     {
         var rows = await db.Set<ImportRow>().AsNoTracking()
             .Where(x => x.ImportJobId == job.Id && x.RowStatus != "error")
@@ -127,7 +129,8 @@ public static class ImportCommitter
                 Description = data.Description,
                 BasePriceMinor = data.BasePriceMinor,
                 CurrencyCode = currencyCode,
-                ImageUrl = data.ImageFile, // chỉ URL http (parser đã lọc)
+                // URL http giữ nguyên; tên file trong ZIP gắn SAU transaction (PRD 7.3)
+                ImageUrl = data.ImageFile?.StartsWith("http") == true ? data.ImageFile : null,
                 IsAvailable = data.IsAvailable,
                 SortOrder = data.SortOrder,
             };
@@ -203,8 +206,56 @@ public static class ImportCommitter
                 "Dữ liệu quán thay đổi trong lúc import (trùng mã/tên). Hãy chạy lại kiểm tra file.", 409);
         }
 
+        // --- Gắn ảnh SAU transaction (PRD 7.3: ảnh lỗi không làm mất menu — AC 8) ---
+        var (imagesAttached, imagesFailed) = await AttachImagesAsync(db, job, productByCode, imageStorage, ct);
+
         return new CommitOutcome(
             areaByCode.Count, newTables.Count, categoryByCode.Count, productByCode.Count,
-            variantsCreated, groupByCode.Count, optionsCreated, linksCreated, menuCreated, newTables);
+            variantsCreated, groupByCode.Count, optionsCreated, linksCreated, menuCreated,
+            imagesAttached, imagesFailed, newTables);
+    }
+
+    private static async Task<(int Attached, int Failed)> AttachImagesAsync(
+        TingGoDbContext db, ImportJob job, Dictionary<string, Product> productByCode,
+        IImageStorage imageStorage, CancellationToken ct)
+    {
+        var assets = await db.Set<ImportAsset>()
+            .Where(x => x.ImportJobId == job.Id && x.Status == "staged" && x.TargetEntityCode != null)
+            .ToListAsync(ct);
+        int attached = 0, failed = 0;
+        foreach (var asset in assets)
+        {
+            try
+            {
+                if (!productByCode.TryGetValue(asset.TargetEntityCode!, out var product))
+                {
+                    asset.Status = "unused";
+                    continue;
+                }
+                await using var fileStream = File.OpenRead(asset.StorageKey);
+                var url = await imageStorage.SaveAsync(fileStream, asset.ContentType, ct);
+                product.ImageUrl = url;
+                product.RowVersion++;
+                asset.Status = "attached";
+                attached++;
+            }
+            catch (Exception ex)
+            {
+                asset.Status = "failed";
+                asset.ErrorMessage = ex.Message;
+                db.Add(new ImportIssue
+                {
+                    ImportJobId = job.Id, Severity = "WARNING", Code = "IMPORT_IMAGE_ATTACH_FAILED",
+                    SheetName = "images/",
+                    Message = $"Không gắn được ảnh '{asset.SourceFilename}' — món vẫn được tạo, thêm ảnh sau trên web.",
+                });
+                failed++;
+            }
+        }
+        if (assets.Count > 0)
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        return (attached, failed);
     }
 }

@@ -47,6 +47,20 @@ public sealed class ImportRow
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
+public sealed class ImportAsset
+{
+    public Guid Id { get; set; } = Guid.CreateVersion7();
+    public Guid ImportJobId { get; set; }
+    public string SourceFilename { get; set; } = "";
+    public string StorageKey { get; set; } = "";
+    public string ContentType { get; set; } = "";
+    public long SizeBytes { get; set; }
+    public string? TargetEntityCode { get; set; }
+    public string Status { get; set; } = "staged"; // staged | attached | failed | unused
+    public string? ErrorMessage { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
 public sealed class ImportIssue
 {
     public Guid Id { get; set; } = Guid.CreateVersion7();

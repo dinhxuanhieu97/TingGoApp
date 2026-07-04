@@ -80,6 +80,23 @@ public sealed class InfrastructureEntityConfigurator : IModuleEntityConfigurator
             e.HasIndex(x => new { x.ImportJobId, x.SectionType });
         });
 
+        b.Entity<ImportAsset>(e =>
+        {
+            e.ToTable("import_assets");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasColumnName("id");
+            e.Property(x => x.ImportJobId).HasColumnName("import_job_id");
+            e.Property(x => x.SourceFilename).HasColumnName("source_filename").HasMaxLength(255);
+            e.Property(x => x.StorageKey).HasColumnName("storage_key");
+            e.Property(x => x.ContentType).HasColumnName("content_type").HasMaxLength(100);
+            e.Property(x => x.SizeBytes).HasColumnName("size_bytes");
+            e.Property(x => x.TargetEntityCode).HasColumnName("target_entity_code").HasMaxLength(100);
+            e.Property(x => x.Status).HasColumnName("status").HasMaxLength(32);
+            e.Property(x => x.ErrorMessage).HasColumnName("error_message");
+            e.Property(x => x.CreatedAt).HasColumnName("created_at");
+            e.HasIndex(x => x.ImportJobId);
+        });
+
         b.Entity<ImportIssue>(e =>
         {
             e.ToTable("import_issues");

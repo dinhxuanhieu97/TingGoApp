@@ -31,35 +31,58 @@ public static class ImportEndpoints
                 "TingGo_Import_Template.xlsx");
         }).RequireAuthorization();
 
-        // ---------- Tạo job: upload + parse + validate → staging ----------
+        // ---------- Tạo job: upload (.xlsx hoặc .zip) + parse + validate → staging ----------
         endpoints.MapPost("/venues/{venueId:guid}/imports", async (
             Guid venueId, IFormFile file, ClaimsPrincipal principal, TingGoDbContext db,
-            IVenueDirectory venues, IMembershipService memberships, CancellationToken ct) =>
+            IVenueDirectory venues, IMembershipService memberships,
+            IConfiguration configuration, CancellationToken ct) =>
         {
             var (venueInfo, membershipId) = await EnsureManagerAsync(venues, memberships, principal, venueId, ct);
-            if (file.Length is 0 or > 10 * 1024 * 1024)
+            if (file.Length == 0)
             {
-                throw new ApiException(ErrorCodes.ValidationFailed, "File phải là .xlsx và nhỏ hơn 10 MB.", 400);
+                throw new ApiException(ErrorCodes.ValidationFailed, "File rỗng.", 400);
+            }
+
+            var job = new ImportJob
+            {
+                OrganizationId = venueInfo.OrganizationId,
+                VenueId = venueId,
+                OriginalFilename = file.FileName,
+                TemplateVersion = TemplateVersion,
+                CreatedBy = membershipId,
+            };
+
+            var stagingRoot = configuration["ImportStaging:LocalPath"] ?? "uploads/import-staging";
+            Stream xlsxStream;
+            var stagedAssets = new List<StagedAsset>();
+            var zipIssues = new List<ImportIssue>();
+
+            await using var uploadStream = file.OpenReadStream();
+            if (ImportZip.IsZip(file.FileName, uploadStream))
+            {
+                (xlsxStream, stagedAssets, zipIssues) =
+                    ImportZip.Extract(uploadStream, file.Length, job.Id, stagingRoot);
+            }
+            else
+            {
+                if (file.Length > 10 * 1024 * 1024)
+                {
+                    throw new ApiException(ErrorCodes.ValidationFailed, "File Excel phải nhỏ hơn 10 MB.", 400);
+                }
+                xlsxStream = uploadStream;
             }
 
             XLWorkbook workbook;
-            try { workbook = new XLWorkbook(file.OpenReadStream()); }
+            try { workbook = new XLWorkbook(xlsxStream); }
             catch
             {
+                ImportZip.CleanupStaging(stagingRoot, job.Id);
                 throw new ApiException(ErrorCodes.ValidationFailed,
-                    "Không đọc được file. Hãy dùng file Excel (.xlsx) theo template.", 400);
+                    "Không đọc được file Excel. Hãy dùng template (.xlsx) hoặc gói .zip chứa nó.", 400);
             }
 
             using (workbook)
             {
-                var job = new ImportJob
-                {
-                    OrganizationId = venueInfo.OrganizationId,
-                    VenueId = venueId,
-                    OriginalFilename = file.FileName,
-                    TemplateVersion = TemplateVersion,
-                    CreatedBy = membershipId,
-                };
 
                 var existing = new ExistingVenueData(
                     TableCodes: (await db.Set<DiningTable>().Where(t => t.VenueId == venueId)
@@ -75,7 +98,42 @@ public static class ImportEndpoints
                     AreaNames: (await db.Set<VenueArea>().Where(a => a.VenueId == venueId)
                         .Select(a => a.Name).ToListAsync(ct)).ToHashSet(StringComparer.OrdinalIgnoreCase));
 
-                var parsed = ImportParser.Parse(workbook, job.Id, existing);
+                var availableImages = stagedAssets.Select(a => a.FileName)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                var parsed = ImportParser.Parse(workbook, job.Id, existing, availableImages);
+
+                // Ghi asset staging + đánh dấu asset không được món nào tham chiếu
+                var referencedImages = parsed.Rows
+                    .Where(r => r.SectionType == ImportSections.Products && r.RowStatus != "error")
+                    .Select(r => System.Text.Json.JsonSerializer.Deserialize<ProductRowData>(
+                        r.NormalizedData, new System.Text.Json.JsonSerializerOptions(
+                            System.Text.Json.JsonSerializerDefaults.Web))!)
+                    .Where(p => p.ImageFile is not null && !p.ImageFile.StartsWith("http"))
+                    .ToDictionary(p => p.ImageFile!, p => p.Code, StringComparer.OrdinalIgnoreCase);
+                foreach (var asset in stagedAssets)
+                {
+                    var target = referencedImages.GetValueOrDefault(asset.FileName);
+                    db.Add(new ImportAsset
+                    {
+                        ImportJobId = job.Id,
+                        SourceFilename = asset.FileName,
+                        StorageKey = asset.StagingPath,
+                        ContentType = asset.ContentType,
+                        SizeBytes = asset.SizeBytes,
+                        TargetEntityCode = target,
+                        Status = target is null ? "unused" : "staged",
+                    });
+                    if (target is null)
+                    {
+                        zipIssues.Add(new ImportIssue
+                        {
+                            ImportJobId = job.Id, Severity = "INFO", Code = "IMPORT_IMAGE_UNUSED",
+                            SheetName = "images/",
+                            Message = $"Ảnh '{asset.FileName}' không được món nào tham chiếu.",
+                        });
+                    }
+                }
+                parsed.Issues.AddRange(zipIssues);
 
                 job.TotalRows = parsed.Rows.Count;
                 job.ErrorRows = parsed.Rows.Count(r => r.RowStatus == "error");
@@ -124,7 +182,9 @@ public static class ImportEndpoints
         // ---------- Commit (AC 6: chặn double-commit bằng atomic status guard) ----------
         endpoints.MapPost("/imports/{importId:guid}/commit", async (
             Guid importId, ClaimsPrincipal principal, TingGoDbContext db,
-            IVenueDirectory venues, IMembershipService memberships, CancellationToken ct) =>
+            IVenueDirectory venues, IMembershipService memberships,
+            TingGo.Modules.Catalog.Services.IImageStorage imageStorage,
+            IConfiguration configuration, CancellationToken ct) =>
         {
             var job = await LoadJobAsync(db, importId, ct);
             var (venueInfo, membershipId) = await EnsureManagerAsync(venues, memberships, principal, job.VenueId, ct);
@@ -146,13 +206,16 @@ public static class ImportEndpoints
 
             try
             {
-                var outcome = await ImportCommitter.CommitAsync(db, job, membershipId, venueInfo.CurrencyCode, ct);
-                job.Status = job.WarningRows > 0
+                var outcome = await ImportCommitter.CommitAsync(
+                    db, job, membershipId, venueInfo.CurrencyCode, imageStorage, ct);
+                job.Status = job.WarningRows > 0 || outcome.ImagesFailed > 0
                     ? ImportJobStatus.CompletedWithWarnings
                     : ImportJobStatus.Completed;
                 job.CompletedAt = DateTimeOffset.UtcNow;
                 db.Update(job);
                 await db.SaveChangesAsync(ct);
+                ImportZip.CleanupStaging(
+                    configuration["ImportStaging:LocalPath"] ?? "uploads/import-staging", job.Id);
                 return Results.Ok(new { job.Id, job.Status, outcome });
             }
             catch
@@ -166,7 +229,8 @@ public static class ImportEndpoints
         // ---------- Cancel (AC 13) ----------
         endpoints.MapPost("/imports/{importId:guid}/cancel", async (
             Guid importId, ClaimsPrincipal principal, TingGoDbContext db,
-            IVenueDirectory venues, IMembershipService memberships, CancellationToken ct) =>
+            IVenueDirectory venues, IMembershipService memberships,
+            IConfiguration configuration, CancellationToken ct) =>
         {
             var job = await LoadJobAsync(db, importId, ct);
             await EnsureManagerAsync(venues, memberships, principal, job.VenueId, ct);
@@ -178,6 +242,8 @@ public static class ImportEndpoints
             {
                 throw new ApiException(ErrorCodes.Conflict, "Job không thể hủy ở trạng thái hiện tại.", 409);
             }
+            ImportZip.CleanupStaging(
+                configuration["ImportStaging:LocalPath"] ?? "uploads/import-staging", importId);
             return Results.Ok(new { importId, status = ImportJobStatus.Cancelled });
         }).RequireAuthorization();
 

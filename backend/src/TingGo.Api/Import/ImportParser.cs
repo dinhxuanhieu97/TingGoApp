@@ -29,8 +29,11 @@ public static partial class ImportParser
     [GeneratedRegex("^[A-Za-z0-9_-]{1,64}$")]
     private static partial Regex CodeRegex();
 
-    public static ImportParseResult Parse(XLWorkbook workbook, Guid jobId, ExistingVenueData existing)
+    public static ImportParseResult Parse(
+        XLWorkbook workbook, Guid jobId, ExistingVenueData existing,
+        IReadOnlySet<string>? availableImages = null)
     {
+        availableImages ??= new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var result = new ImportParseResult();
         var codes = new Dictionary<string, HashSet<string>>(); // section → codes (upper)
 
@@ -143,9 +146,18 @@ public static partial class ImportParser
             var imageFile = Str(row, 6);
             if (imageFile.Length > 0 && !imageFile.StartsWith("http"))
             {
-                ctx.Warning("IMPORT_IMAGE_NOT_SUPPORTED", "image_file",
-                    "Ảnh từ file ZIP chưa hỗ trợ — món được tạo không ảnh, thêm ảnh sau trên web.");
-                imageFile = "";
+                // Chấp nhận "images/x.jpg" hoặc "x.jpg" — so theo tên file trong gói ZIP
+                var imageName = Path.GetFileName(imageFile);
+                if (availableImages.Contains(imageName))
+                {
+                    imageFile = imageName;
+                }
+                else
+                {
+                    ctx.Warning("IMPORT_IMAGE_NOT_FOUND", "image_file",
+                        $"Không tìm thấy ảnh '{imageFile}' trong gói ZIP — món được tạo không ảnh.");
+                    imageFile = "";
+                }
             }
             var description = Str(row, 4);
             if (description.Length == 0)
