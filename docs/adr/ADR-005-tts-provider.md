@@ -1,8 +1,23 @@
-# ADR-005: TTS — CapCut API qua abstraction layer
+# ADR-005: TTS — on-device mặc định, provider chính thức cho premium (KHÔNG dùng CapCut private API)
 
-**Status:** Proposed (chờ thông tin API từ Product Owner)
-**Date:** 2026-07-03
+**Status:** Accepted (2026-07-04 — sau khi đánh giá tài liệu capcut-tts-api do PO cung cấp)
+**Date:** 2026-07-03, cập nhật 2026-07-04
 **Deciders:** Mobile Developer, Product Owner
+
+## Kết quả đánh giá CapCut (2026-07-04)
+
+Tài liệu PO cung cấp (`capcut-tts-api/` — giữ local, không track git) là client
+**reverse-engineer API nội bộ CapCut**: tái tạo chữ ký request từ luồng bị bắt gói,
+giả lập device profile/session của app CapCut desktop. 129 voice, có tiếng Việt.
+
+**Quyết định: KHÔNG dùng cho production.** Lý do:
+1. Không phải API thương mại chính thức → gần như chắc chắn vi phạm ToS CapCut/ByteDance.
+2. Rủi ro vận hành: CapCut đổi cơ chế ký → TTS chết đột ngột giữa lúc quán chạy.
+3. Rủi ro pháp lý cho sản phẩm bán cho khách hàng.
+
+**Phương án premium thay thế** (tích hợp qua `ITtsEngine` khi cần, không đổi kiến trúc):
+FPT.AI TTS (chuyên tiếng Việt), Google Cloud TTS, Azure Speech — API chính thức, SLA rõ.
+Kích hoạt khi PO cung cấp API key của provider được chọn.
 
 ## Context
 
