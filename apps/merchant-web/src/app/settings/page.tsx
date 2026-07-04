@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, ApiError, getTokens } from "@/lib/api";
 import type { Membership } from "@/lib/types";
@@ -29,6 +29,26 @@ interface OpeningHourRow {
 
 const DAY_LABEL = ["", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ nhật"];
 
+// Lựa chọn phổ biến — vẫn cho phép giá trị khác đã lưu trong DB
+const TIMEZONES = [
+  { value: "Asia/Ho_Chi_Minh", label: "Việt Nam (GMT+7)" },
+  { value: "Asia/Bangkok", label: "Bangkok (GMT+7)" },
+  { value: "Asia/Singapore", label: "Singapore (GMT+8)" },
+  { value: "Asia/Tokyo", label: "Tokyo (GMT+9)" },
+];
+const LOCALES = [
+  { value: "vi-VN", label: "Tiếng Việt" },
+  { value: "en-US", label: "English" },
+  { value: "zh-CN", label: "中文" },
+  { value: "ja-JP", label: "日本語" },
+];
+const CURRENCIES = [
+  { value: "VND", label: "VND — Việt Nam Đồng" },
+  { value: "USD", label: "USD — US Dollar" },
+  { value: "JPY", label: "JPY — Japanese Yen" },
+  { value: "CNY", label: "CNY — Chinese Yuan" },
+];
+
 function defaultHours(): OpeningHourRow[] {
   return Array.from({ length: 7 }, (_, i) => ({
     dayOfWeek: i + 1,
@@ -36,6 +56,61 @@ function defaultHours(): OpeningHourRow[] {
     closeTime: "22:00",
     isClosed: false,
   }));
+}
+
+const inputClass =
+  "mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100";
+
+interface SectionCardProps {
+  icon: string;
+  title: string;
+  description: string;
+  children: React.ReactNode;
+}
+
+function SectionCard({ icon, title, description, children }: SectionCardProps) {
+  return (
+    <section className="rounded-2xl bg-white p-4 shadow sm:p-5">
+      <div className="mb-4 flex items-start gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-lg">
+          {icon}
+        </span>
+        <div>
+          <h2 className="font-semibold">{title}</h2>
+          <p className="text-xs text-gray-500">{description}</p>
+        </div>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+interface ToggleProps {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  label: string;
+}
+
+/** Toggle switch chuẩn 44px touch target */
+function Toggle({ checked, onChange, label }: ToggleProps) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={() => onChange(!checked)}
+      className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
+        checked ? "bg-brand-600" : "bg-gray-300"
+      }`}
+    >
+      <span
+        className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+          checked ? "translate-x-[22px]" : "translate-x-0.5"
+        }`}
+      />
+    </button>
+  );
 }
 
 export default function SettingsPage() {
@@ -47,11 +122,13 @@ export default function SettingsPage() {
   const [locale, setLocale] = useState("");
   const [currency, setCurrency] = useState("");
   const [bankQrFile, setBankQrFile] = useState<File | null>(null);
+  const [bankQrPreview, setBankQrPreview] = useState<string | null>(null);
   const [hours, setHours] = useState<OpeningHourRow[]>(defaultHours());
   const [savingHours, setSavingHours] = useState(false);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!getTokens()) {
@@ -88,6 +165,17 @@ export default function SettingsPage() {
     })();
   }, [router]);
 
+  function pickBankQr(file: File | null) {
+    setBankQrFile(file);
+    if (bankQrPreview) URL.revokeObjectURL(bankQrPreview);
+    setBankQrPreview(file ? URL.createObjectURL(file) : null);
+  }
+
+  function showNotice(message: string) {
+    setNotice(message);
+    setTimeout(() => setNotice(""), 3000);
+  }
+
   async function save(e: React.FormEvent) {
     e.preventDefault();
     if (!venue) return;
@@ -114,9 +202,8 @@ export default function SettingsPage() {
         },
       });
       setVenue(updated);
-      setBankQrFile(null);
-      setNotice("Đã lưu cài đặt.");
-      setTimeout(() => setNotice(""), 3000);
+      pickBankQr(null);
+      showNotice("Đã lưu cài đặt ✓");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Không lưu được.");
     } finally {
@@ -124,126 +211,245 @@ export default function SettingsPage() {
     }
   }
 
+  async function saveHours() {
+    if (!venue) return;
+    setSavingHours(true);
+    setError("");
+    try {
+      await api(`/venues/${venue.id}/opening-hours`, {
+        method: "PUT",
+        body: { days: hours },
+      });
+      showNotice("Đã lưu giờ mở cửa ✓");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Không lưu được giờ mở cửa.");
+    } finally {
+      setSavingHours(false);
+    }
+  }
+
+  /** Áp giờ Thứ 2 cho tất cả các ngày đang mở */
+  function applyMondayToAll() {
+    const monday = hours[0];
+    setHours((prev) =>
+      prev.map((h) =>
+        h.isClosed ? h : { ...h, openTime: monday.openTime, closeTime: monday.closeTime },
+      ),
+    );
+  }
+
+  function updateHour(index: number, patch: Partial<OpeningHourRow>) {
+    setHours((prev) => prev.map((h, i) => (i === index ? { ...h, ...patch } : h)));
+  }
+
+  const selectValue = (options: { value: string }[], current: string) =>
+    options.some((o) => o.value === current) ? current : "";
+
   return (
     <main className="min-h-screen bg-orange-50">
       <MerchantNav venueName={venue?.name} />
 
-      <div className="mx-auto max-w-xl p-3 sm:p-6">
-        {error && <p className="mb-3 rounded-lg bg-red-100 px-4 py-2 text-sm text-red-700">{error}</p>}
-        {notice && <p className="mb-3 rounded-lg bg-green-100 px-4 py-2 text-sm text-green-800">{notice}</p>}
+      {/* Toast thông báo nổi */}
+      {notice && (
+        <div className="fixed left-1/2 top-16 z-30 -translate-x-1/2 rounded-full bg-gray-900/90 px-4 py-2 text-sm font-medium text-white shadow-lg">
+          {notice}
+        </div>
+      )}
 
-        <form onSubmit={save} className="space-y-4 rounded-2xl bg-white p-5 shadow">
-          <h2 className="font-semibold">Cài đặt quán</h2>
-          <label className="block text-sm">
-            <span className="font-medium">Tên quán</span>
-            <input required value={name} onChange={(e) => setName(e.target.value)} maxLength={200}
-              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-orange-500 focus:outline-none" />
-          </label>
-          <label className="block text-sm">
-            <span className="font-medium">Tên Wi-Fi (hiển thị cho khách)</span>
-            <input value={wifiName} onChange={(e) => setWifiName(e.target.value)} maxLength={200}
-              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-orange-500 focus:outline-none" />
-          </label>
-          <div className="grid grid-cols-3 gap-2">
-            <label className="block text-sm">
-              <span className="font-medium">Múi giờ</span>
-              <input value={timezone} onChange={(e) => setTimezone(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-2 text-xs" />
-            </label>
-            <label className="block text-sm">
-              <span className="font-medium">Ngôn ngữ</span>
-              <input value={locale} onChange={(e) => setLocale(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-2 text-xs" />
-            </label>
-            <label className="block text-sm">
-              <span className="font-medium">Tiền tệ</span>
-              <input value={currency} onChange={(e) => setCurrency(e.target.value)} maxLength={3}
-                className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-2 text-xs uppercase" />
-            </label>
+      <div className="mx-auto max-w-4xl p-3 sm:p-6">
+        <div className="mb-4">
+          <h1 className="text-lg font-bold">Cài đặt quán</h1>
+          <p className="text-xs text-gray-500">
+            Thông tin ở đây hiển thị trực tiếp cho khách khi quét QR.
+          </p>
+        </div>
+
+        {error && (
+          <p className="mb-3 rounded-xl bg-danger-bg px-4 py-2.5 text-sm text-danger">
+            {error}
+            <button onClick={() => setError("")} className="ml-2 font-bold">×</button>
+          </p>
+        )}
+
+        <div className="grid items-start gap-4 lg:grid-cols-2">
+          <div className="space-y-4">
+            <form onSubmit={save} className="contents">
+              <SectionCard
+                icon="🏪"
+                title="Thông tin quán"
+                description="Tên, Wi-Fi và định dạng hiển thị cho khách"
+              >
+                <div className="space-y-3">
+                  <label className="block text-sm">
+                    <span className="font-medium">Tên quán</span>
+                    <input required value={name} onChange={(e) => setName(e.target.value)}
+                      maxLength={200} className={inputClass} />
+                  </label>
+                  <label className="block text-sm">
+                    <span className="font-medium">Tên Wi-Fi</span>
+                    <span className="ml-1 text-xs font-normal text-gray-400">
+                      (khách thấy ngay dưới tên quán)
+                    </span>
+                    <input value={wifiName} onChange={(e) => setWifiName(e.target.value)}
+                      maxLength={200} placeholder="VD: CafeHieu_5G" className={inputClass} />
+                  </label>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <label className="block text-sm">
+                      <span className="font-medium">Múi giờ</span>
+                      <select value={selectValue(TIMEZONES, timezone)}
+                        onChange={(e) => setTimezone(e.target.value)} className={inputClass}>
+                        {!selectValue(TIMEZONES, timezone) && (
+                          <option value="">{timezone}</option>
+                        )}
+                        {TIMEZONES.map((tz) => (
+                          <option key={tz.value} value={tz.value}>{tz.label}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block text-sm">
+                      <span className="font-medium">Ngôn ngữ</span>
+                      <select value={selectValue(LOCALES, locale)}
+                        onChange={(e) => setLocale(e.target.value)} className={inputClass}>
+                        {!selectValue(LOCALES, locale) && <option value="">{locale}</option>}
+                        {LOCALES.map((l) => (
+                          <option key={l.value} value={l.value}>{l.label}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block text-sm">
+                      <span className="font-medium">Tiền tệ</span>
+                      <select value={selectValue(CURRENCIES, currency)}
+                        onChange={(e) => setCurrency(e.target.value)} className={inputClass}>
+                        {!selectValue(CURRENCIES, currency) && (
+                          <option value="">{currency}</option>
+                        )}
+                        {CURRENCIES.map((c) => (
+                          <option key={c.value} value={c.value}>{c.label}</option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                </div>
+              </SectionCard>
+
+              <SectionCard
+                icon="💳"
+                title="QR chuyển khoản"
+                description="Khách bấm “Thanh toán” sẽ thấy ảnh QR này (VietQR tĩnh)"
+              >
+                <div className="flex items-start gap-4">
+                  {(bankQrPreview || venue?.bankQrImageUrl) ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={bankQrPreview ?? `${API_ORIGIN}${venue?.bankQrImageUrl}`}
+                      alt="QR ngân hàng"
+                      className="h-28 w-28 shrink-0 rounded-xl border object-contain"
+                    />
+                  ) : (
+                    <div className="flex h-28 w-28 shrink-0 items-center justify-center rounded-xl border-2 border-dashed border-gray-300 text-3xl text-gray-300">
+                      ⬚
+                    </div>
+                  )}
+                  <div className="flex-1">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={(e) => pickBankQr(e.target.files?.[0] ?? null)}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="rounded-xl border border-brand-300 px-4 py-2 text-sm font-semibold text-brand-600 hover:bg-brand-50"
+                    >
+                      {venue?.bankQrImageUrl || bankQrPreview ? "Đổi ảnh QR" : "Tải ảnh QR lên"}
+                    </button>
+                    {bankQrFile && (
+                      <p className="mt-1.5 text-xs text-gray-500">
+                        Đã chọn: {bankQrFile.name} — bấm <b>Lưu cài đặt</b> để áp dụng.
+                      </p>
+                    )}
+                    <p className="mt-1.5 text-xs text-gray-400">
+                      Xuất ảnh VietQR từ app ngân hàng của bạn. Nhân viên đối chiếu tiền vào
+                      tài khoản rồi xác nhận đơn.
+                    </p>
+                  </div>
+                </div>
+              </SectionCard>
+
+              <button
+                disabled={saving}
+                className="w-full rounded-xl bg-brand-600 py-3 font-semibold text-white shadow-sm hover:bg-brand-700 disabled:opacity-50"
+              >
+                {saving ? "Đang lưu..." : "Lưu cài đặt"}
+              </button>
+            </form>
           </div>
 
-          <div className="rounded-xl bg-orange-50 p-3">
-            <p className="text-sm font-medium">QR ngân hàng (chuyển khoản tĩnh — VietQR)</p>
-            <p className="mb-2 text-xs text-gray-500">
-              Khách bấm &quot;Thanh toán&quot; sẽ thấy ảnh QR này để chuyển khoản. Nhân viên đối chiếu rồi xác nhận.
-            </p>
-            {venue?.bankQrImageUrl && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={`${API_ORIGIN}${venue.bankQrImageUrl}`} alt="QR ngân hàng"
-                className="mb-2 h-36 w-36 rounded-lg border object-contain" />
-            )}
-            <input type="file" accept="image/jpeg,image/png,image/webp"
-              onChange={(e) => setBankQrFile(e.target.files?.[0] ?? null)}
-              className="block w-full text-xs" />
-          </div>
-
-          <button disabled={saving}
-            className="w-full rounded-xl bg-orange-600 py-2.5 font-semibold text-white hover:bg-orange-700 disabled:opacity-50">
-            {saving ? "Đang lưu..." : "Lưu cài đặt"}
-          </button>
-        </form>
-
-        <div className="mt-6 rounded-2xl bg-white p-5 shadow">
-          <h2 className="mb-3 font-semibold">Giờ mở cửa</h2>
-          <div className="space-y-1.5">
-            {hours.map((row, index) => (
-              <div key={row.dayOfWeek} className="flex items-center gap-2 text-sm">
-                <span className="w-16 font-medium">{DAY_LABEL[row.dayOfWeek]}</span>
-                <input
-                  type="time"
-                  value={row.openTime ?? ""}
-                  disabled={row.isClosed}
-                  onChange={(e) =>
-                    setHours((prev) => prev.map((h, i) => (i === index ? { ...h, openTime: e.target.value } : h)))
-                  }
-                  className="rounded-lg border border-gray-300 px-2 py-1 disabled:bg-gray-100 disabled:text-gray-400"
-                />
-                <span className="text-gray-400">–</span>
-                <input
-                  type="time"
-                  value={row.closeTime ?? ""}
-                  disabled={row.isClosed}
-                  onChange={(e) =>
-                    setHours((prev) => prev.map((h, i) => (i === index ? { ...h, closeTime: e.target.value } : h)))
-                  }
-                  className="rounded-lg border border-gray-300 px-2 py-1 disabled:bg-gray-100 disabled:text-gray-400"
-                />
-                <label className="ml-auto flex items-center gap-1 text-xs text-gray-500">
-                  <input
-                    type="checkbox"
-                    checked={row.isClosed}
-                    onChange={(e) =>
-                      setHours((prev) => prev.map((h, i) => (i === index ? { ...h, isClosed: e.target.checked } : h)))
-                    }
-                  />
-                  Nghỉ
-                </label>
-              </div>
-            ))}
-          </div>
-          <button
-            disabled={savingHours}
-            onClick={async () => {
-              if (!venue) return;
-              setSavingHours(true);
-              setError("");
-              try {
-                await api(`/venues/${venue.id}/opening-hours`, {
-                  method: "PUT",
-                  body: { days: hours },
-                });
-                setNotice("Đã lưu giờ mở cửa.");
-                setTimeout(() => setNotice(""), 3000);
-              } catch (err) {
-                setError(err instanceof ApiError ? err.message : "Không lưu được giờ mở cửa.");
-              } finally {
-                setSavingHours(false);
-              }
-            }}
-            className="mt-3 w-full rounded-xl bg-orange-600 py-2.5 font-semibold text-white hover:bg-orange-700 disabled:opacity-50"
+          <SectionCard
+            icon="🕐"
+            title="Giờ mở cửa"
+            description="Khách thấy “Đang mở cửa / Ngoài giờ” trên trang gọi món"
           >
-            {savingHours ? "Đang lưu..." : "Lưu giờ mở cửa"}
-          </button>
+            <button
+              type="button"
+              onClick={applyMondayToAll}
+              className="mb-3 rounded-full border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
+            >
+              ⧉ Áp dụng giờ Thứ 2 cho cả tuần
+            </button>
+            <div className="divide-y">
+              {hours.map((row, index) => (
+                <div key={row.dayOfWeek} className="flex flex-wrap items-center gap-2 py-2.5 text-sm">
+                  <span className="w-16 font-medium">{DAY_LABEL[row.dayOfWeek]}</span>
+                  {row.isClosed ? (
+                    <span className="flex-1 text-xs text-gray-400">Nghỉ cả ngày</span>
+                  ) : (
+                    <div className="flex flex-1 items-center gap-1.5">
+                      <input
+                        type="time"
+                        value={row.openTime ?? ""}
+                        onChange={(e) => updateHour(index, { openTime: e.target.value })}
+                        className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:border-brand-500 focus:outline-none"
+                      />
+                      <span className="text-gray-400">–</span>
+                      <input
+                        type="time"
+                        value={row.closeTime ?? ""}
+                        onChange={(e) => updateHour(index, { closeTime: e.target.value })}
+                        className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:border-brand-500 focus:outline-none"
+                      />
+                    </div>
+                  )}
+                  <div className="ml-auto flex items-center gap-1.5">
+                    <span className="text-xs text-gray-400">
+                      {row.isClosed ? "Nghỉ" : "Mở"}
+                    </span>
+                    <Toggle
+                      checked={!row.isClosed}
+                      onChange={(open) =>
+                        updateHour(index, {
+                          isClosed: !open,
+                          ...(open && !row.openTime
+                            ? { openTime: "07:00", closeTime: "22:00" }
+                            : {}),
+                        })
+                      }
+                      label={`${DAY_LABEL[row.dayOfWeek]} ${row.isClosed ? "đang nghỉ" : "đang mở"}`}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button
+              disabled={savingHours}
+              onClick={saveHours}
+              className="mt-3 w-full rounded-xl bg-brand-600 py-3 font-semibold text-white shadow-sm hover:bg-brand-700 disabled:opacity-50"
+            >
+              {savingHours ? "Đang lưu..." : "Lưu giờ mở cửa"}
+            </button>
+          </SectionCard>
         </div>
       </div>
     </main>
