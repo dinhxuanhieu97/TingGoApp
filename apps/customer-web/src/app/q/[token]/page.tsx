@@ -373,35 +373,7 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
       )}
 
       {sessionOrders && sessionOrders.orders.length > 0 && (
-        <section className="mx-auto mt-3 max-w-2xl rounded-2xl bg-white p-3 shadow-sm max-sm:mx-4">
-          <h2 className="mb-2 text-sm font-semibold">{t(lang, "tableOrders")}</h2>
-          <ul className="space-y-2">
-            {sessionOrders.orders.map((o) => (
-              <li key={o.id} className="flex items-center justify-between text-sm">
-                <div>
-                  <span className="font-medium">{o.orderNumber}</span>
-                  <span className="ml-2 text-xs text-gray-500">
-                    {o.items.map((i) => `${i.productName} ×${i.quantity}`).join(", ")}
-                  </span>
-                </div>
-                <span
-                  className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                    o.status === "rejected" || o.status === "cancelled"
-                      ? "bg-red-100 text-red-600"
-                      : o.status === "completed"
-                        ? "bg-green-100 text-green-700"
-                        : "bg-orange-100 text-orange-700"
-                  }`}
-                >
-                  {statusLabel(lang, o.status)}
-                </span>
-              </li>
-            ))}
-          </ul>
-          <p className="mt-2 border-t pt-2 text-right text-sm font-semibold">
-            {t(lang, "tableTotal")}: {formatMoney(sessionOrders.totalMinor, currency)}
-          </p>
-        </section>
+        <TableOrders sessionOrders={sessionOrders} lang={lang} currency={currency} />
       )}
 
       {/* Chip danh mục cuộn ngang — bấm nhảy tới section (pattern GrabFood) */}
@@ -613,6 +585,90 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
         </div>
       )}
     </main>
+  );
+}
+
+const DONE_STATUSES = new Set(["completed", "rejected", "cancelled"]);
+
+/** Trạng thái → màu hiển thị (dot + chip + viền trái card) */
+function statusStyle(status: string): { dot: string; chip: string; border: string } {
+  switch (status) {
+    case "ready":
+      return { dot: "bg-success animate-pulse", chip: "bg-success-bg text-success", border: "border-l-success" };
+    case "completed":
+      return { dot: "bg-gray-400", chip: "bg-gray-100 text-gray-500", border: "border-l-gray-300" };
+    case "rejected":
+    case "cancelled":
+      return { dot: "bg-danger", chip: "bg-danger-bg text-danger", border: "border-l-danger" };
+    case "submitted":
+      return { dot: "bg-warning animate-pulse", chip: "bg-warning-bg text-warning", border: "border-l-warning" };
+    default: // confirmed, preparing
+      return { dot: "bg-brand-600", chip: "bg-brand-100 text-brand-700", border: "border-l-brand-500" };
+  }
+}
+
+interface TableOrdersProps {
+  sessionOrders: SessionOrders;
+  lang: Lang;
+  currency: string;
+}
+
+/** Danh sách order của bàn: đơn đang xử lý nổi bật, đơn đã xong thu gọn */
+function TableOrders({ sessionOrders, lang, currency }: TableOrdersProps) {
+  const [showDone, setShowDone] = useState(false);
+  // UUIDv7 tăng theo thời gian → sort desc = đơn mới nhất trước
+  const sorted = [...sessionOrders.orders].sort((a, b) => b.id.localeCompare(a.id));
+  const active = sorted.filter((o) => !DONE_STATUSES.has(o.status));
+  const done = sorted.filter((o) => DONE_STATUSES.has(o.status));
+
+  const renderOrder = (o: SessionOrders["orders"][number]) => {
+    const style = statusStyle(o.status);
+    return (
+      <li key={o.id} className={`rounded-xl border border-l-4 border-gray-100 bg-white p-3 ${style.border}`}>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-sm font-bold">{o.orderNumber}</span>
+          <span className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${style.chip}`}>
+            <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
+            {statusLabel(lang, o.status)}
+          </span>
+        </div>
+        <ul className="mt-1.5 space-y-0.5 text-xs text-gray-600">
+          {o.items.map((i, idx) => (
+            <li key={idx}>{i.quantity}× {i.productName}</li>
+          ))}
+        </ul>
+        <p className="mt-1.5 text-right text-xs font-semibold text-gray-700">
+          {formatMoney(o.totalMinor, currency)}
+        </p>
+      </li>
+    );
+  };
+
+  return (
+    <section className="mx-auto mt-3 max-w-2xl rounded-2xl bg-white p-3 shadow-sm max-sm:mx-4">
+      <h2 className="mb-2 text-sm font-semibold">{t(lang, "tableOrders")}</h2>
+      {active.length > 0 && <ul className="space-y-2">{active.map(renderOrder)}</ul>}
+
+      {done.length > 0 && (
+        <>
+          <button
+            onClick={() => setShowDone((v) => !v)}
+            className="mt-2 flex w-full items-center justify-between rounded-lg bg-gray-50 px-3 py-2 text-xs font-medium text-gray-500"
+          >
+            <span>{t(lang, "doneOrders")} ({done.length})</span>
+            <span className="text-brand-600">{showDone ? t(lang, "hideLabel") : t(lang, "showLabel")}</span>
+          </button>
+          {showDone && <ul className="mt-2 space-y-2">{done.map(renderOrder)}</ul>}
+        </>
+      )}
+
+      <div className="mt-3 flex items-center justify-between rounded-xl bg-brand-50 px-3 py-2.5">
+        <span className="text-sm font-semibold">{t(lang, "tableTotal")}</span>
+        <span className="text-base font-extrabold text-brand-600">
+          {formatMoney(sessionOrders.totalMinor, currency)}
+        </span>
+      </div>
+    </section>
   );
 }
 

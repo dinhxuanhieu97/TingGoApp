@@ -80,6 +80,32 @@ export default function StaffPage() {
     }
   }
 
+  const [editing, setEditing] = useState<StaffMember | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editRole, setEditRole] = useState("waiter");
+
+  function openEdit(member: StaffMember) {
+    setEditing(member);
+    setEditName(member.displayName);
+    setEditRole(member.role);
+  }
+
+  async function saveEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!venue || !editing) return;
+    try {
+      await api(`/venues/${venue.id}/staff/${editing.id}`, {
+        method: "PATCH",
+        body: { displayName: editName.trim(), role: editRole },
+      });
+      setEditing(null);
+      setNotice(`Đã cập nhật ${editName.trim()}.`);
+      await load(venue);
+    } catch (err) {
+      showError(err);
+    }
+  }
+
   async function resetPin(member: StaffMember) {
     if (!venue) return;
     const newPin = prompt(`PIN mới cho ${member.displayName} (4–6 số):`);
@@ -169,6 +195,10 @@ export default function StaffPage() {
                 </span>
                 {member.role !== "owner" && (
                   <>
+                    <button onClick={() => openEdit(member)}
+                      className="rounded-lg border border-gray-300 px-2.5 py-1 text-xs hover:bg-gray-50">
+                      Sửa
+                    </button>
                     <button onClick={() => resetPin(member)}
                       className="rounded-lg border border-gray-300 px-2.5 py-1 text-xs hover:bg-gray-50">
                       Đặt lại PIN
@@ -187,6 +217,43 @@ export default function StaffPage() {
           {staff.length === 0 && <p className="py-6 text-center text-sm text-gray-400">Chưa có nhân viên.</p>}
         </section>
       </div>
+
+      {/* Modal sửa nhân viên */}
+      {editing && (
+        <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setEditing(null)}>
+          <form onSubmit={saveEdit} onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl">
+            <h3 className="mb-3 font-semibold">Sửa nhân viên</h3>
+            <label className="block text-sm">
+              <span className="font-medium">Tên hiển thị</span>
+              <input required value={editName} onChange={(e) => setEditName(e.target.value)}
+                maxLength={200}
+                className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-brand-500 focus:outline-none" />
+            </label>
+            <label className="mt-3 block text-sm">
+              <span className="font-medium">Vai trò</span>
+              <select value={editRole} onChange={(e) => setEditRole(e.target.value)}
+                className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm focus:border-brand-500 focus:outline-none">
+                <option value="waiter">Phục vụ</option>
+                <option value="cashier">Thu ngân</option>
+                <option value="kitchen">Bếp</option>
+                <option value="manager">Quản lý</option>
+              </select>
+            </label>
+            <div className="mt-4 flex gap-2">
+              <button type="submit"
+                className="flex-1 rounded-xl bg-brand-600 py-2.5 font-semibold text-white hover:bg-brand-700">
+                Lưu
+              </button>
+              <button type="button" onClick={() => setEditing(null)}
+                className="flex-1 rounded-xl border py-2.5 hover:bg-gray-50">
+                Hủy
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </main>
   );
 }

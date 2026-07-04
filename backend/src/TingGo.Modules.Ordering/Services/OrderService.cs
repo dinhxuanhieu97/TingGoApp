@@ -23,7 +23,7 @@ public sealed record OrderItemView(
 public sealed record OrderView(
     Guid Id, string OrderNumber, string Status, long SubtotalMinor, long TotalMinor,
     string CurrencyCode, string? CustomerNote, string? RejectionReason,
-    DateTimeOffset PlacedAt, long RowVersion, List<OrderItemView> Items);
+    DateTimeOffset PlacedAt, DateTimeOffset StatusChangedAt, long RowVersion, List<OrderItemView> Items);
 
 public sealed class OrderService(
     TingGoDbContext db,
@@ -223,7 +223,9 @@ public sealed class OrderService(
         Order order, List<OrderItem> items, List<OrderItemModifier> modifiers)
         => Task.FromResult(new OrderView(
             order.Id, order.OrderNumber, order.Status, order.SubtotalMinor, order.TotalMinor,
-            order.CurrencyCode, order.CustomerNote, order.RejectionReason, order.PlacedAt, order.RowVersion,
+            order.CurrencyCode, order.CustomerNote, order.RejectionReason, order.PlacedAt,
+            // Thời điểm vào trạng thái hiện tại — UpdatedAt chỉ thay đổi khi chuyển trạng thái
+            order.UpdatedAt, order.RowVersion,
             items.Select(i => new OrderItemView(
                 i.ProductNameSnapshot, i.VariantNameSnapshot, i.Quantity, i.UnitPriceMinor,
                 i.LineTotalMinor, i.Note,

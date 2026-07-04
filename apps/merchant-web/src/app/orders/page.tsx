@@ -16,6 +16,7 @@ interface OrderView {
   currencyCode: string;
   customerNote?: string;
   placedAt: string;
+  statusChangedAt?: string;
   rowVersion: number;
   items: { productName: string; variantName?: string; quantity: number; note?: string; options: string[] }[];
 }
@@ -257,7 +258,15 @@ export default function OrdersPage() {
       {/* Tablet/mobile: cuộn ngang snap từng cột; desktop: 4 cột */}
       <div className="no-scrollbar snap-x-mandatory flex gap-3 overflow-x-auto p-3 sm:p-4 xl:grid xl:grid-cols-4 xl:gap-4 xl:overflow-visible xl:p-6">
         {COLUMNS.map((column) => {
-          const columnOrders = orders.filter((o) => o.view.status === column.status);
+          // FIFO công bằng: đơn vào trạng thái này sớm nhất đứng đầu
+          // (Đơn mới theo giờ đặt, Đã xác nhận theo giờ xác nhận, ...)
+          const columnOrders = orders
+            .filter((o) => o.view.status === column.status)
+            .sort(
+              (a, b) =>
+                new Date(a.view.statusChangedAt ?? a.view.placedAt).getTime() -
+                new Date(b.view.statusChangedAt ?? b.view.placedAt).getTime(),
+            );
           return (
             <section
               key={column.status}
@@ -270,17 +279,27 @@ export default function OrdersPage() {
                 </span>
               </h2>
               <ul className="space-y-2">
-                {columnOrders.map(({ view: order, tableId }) => (
-                  <li key={order.id} className="rounded-xl border p-3">
+                {columnOrders.map(({ view: order, tableId }, position) => {
+                  const enteredAt = new Date(order.statusChangedAt ?? order.placedAt);
+                  const waitMin = Math.max(0, Math.floor((Date.now() - enteredAt.getTime()) / 60000));
+                  return (
+                  <li key={order.id} className={`rounded-xl border p-3 ${position === 0 ? "border-brand-300 bg-brand-50/40" : ""}`}>
                     <div className="flex items-center justify-between">
-                      <span className="font-bold">{order.orderNumber}</span>
+                      <span className="font-bold">
+                        {position === 0 && <span title="Làm trước" className="mr-1">▶</span>}
+                        {order.orderNumber}
+                      </span>
                       <span className="rounded bg-gray-100 px-2 py-0.5 text-xs font-semibold">
                         Bàn {tableId ? (tableCodes[tableId] ?? "?") : "?"}
                       </span>
                     </div>
                     <p className="mt-1 text-xs text-gray-400">
-                      {new Date(order.placedAt).toLocaleTimeString("vi-VN")} ·{" "}
-                      {formatMoney(order.totalMinor, order.currencyCode)}
+                      {enteredAt.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
+                      {" "}·{" "}
+                      <span className={waitMin >= 10 ? "font-bold text-danger" : waitMin >= 5 ? "font-semibold text-warning" : ""}>
+                        chờ {waitMin} phút
+                      </span>
+                      {" "}· {formatMoney(order.totalMinor, order.currencyCode)}
                     </p>
                     <ul className="mt-1 text-sm">
                       {order.items.map((item, index) => (
@@ -311,7 +330,8 @@ export default function OrdersPage() {
                       ))}
                     </div>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
               {columnOrders.length === 0 && (
                 <p className="py-6 text-center text-xs text-gray-300">Trống</p>

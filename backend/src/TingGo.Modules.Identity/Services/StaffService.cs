@@ -110,6 +110,43 @@ public sealed class StaffService(TingGoDbContext db, IVenueDirectory venueDirect
         await db.SaveChangesAsync(ct);
     }
 
+    /// <summary>Sửa tên hiển thị và/hoặc vai trò nhân viên (không áp dụng cho owner).</summary>
+    public async Task UpdateStaffAsync(
+        Guid callerUserId, Guid venueId, Guid membershipId, string? displayName, string? role, CancellationToken ct)
+    {
+        await EnsureManagerAsync(callerUserId, venueId, ct);
+        var membership = await LoadStaffAsync(venueId, membershipId, ct);
+        if (membership.Role == MembershipRole.Owner)
+        {
+            throw new ApiException(ErrorCodes.Forbidden, "Không thể sửa thông tin owner tại đây.", 403);
+        }
+
+        if (displayName is not null)
+        {
+            if (string.IsNullOrWhiteSpace(displayName) || displayName.Length > 200)
+            {
+                throw new ApiException(ErrorCodes.ValidationFailed, "Tên nhân viên không hợp lệ.", 400);
+            }
+            var user = await db.Set<User>().FirstOrDefaultAsync(x => x.Id == membership.UserId, ct)
+                ?? throw new ApiException(ErrorCodes.NotFound, "Không tìm thấy nhân viên.", 404);
+            user.DisplayName = displayName.Trim();
+            user.UpdatedAt = DateTimeOffset.UtcNow;
+        }
+
+        if (role is not null)
+        {
+            if (!AllowedRoles.Contains(role))
+            {
+                throw new ApiException(ErrorCodes.ValidationFailed,
+                    $"Role phải là: {string.Join(", ", AllowedRoles)}.", 400);
+            }
+            membership.Role = role;
+            membership.UpdatedAt = DateTimeOffset.UtcNow;
+        }
+
+        await db.SaveChangesAsync(ct);
+    }
+
     private async Task<Membership> LoadStaffAsync(Guid venueId, Guid membershipId, CancellationToken ct)
         => await db.Set<Membership>()
                .FirstOrDefaultAsync(x => x.Id == membershipId && x.VenueId == venueId, ct)

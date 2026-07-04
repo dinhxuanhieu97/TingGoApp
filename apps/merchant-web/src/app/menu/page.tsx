@@ -234,6 +234,34 @@ export default function MenuPage() {
     }
   }
 
+  async function renameCategory(category: Category) {
+    const name = prompt("Tên mới cho danh mục:", category.name)?.trim();
+    if (!name || name === category.name) return;
+    try {
+      await api(`/categories/${category.id}`, { method: "PATCH", body: { name } });
+      await refreshMenu();
+    } catch (err) {
+      showError(err);
+    }
+  }
+
+  async function deleteCategory(category: Category, productCount: number) {
+    if (productCount > 0) {
+      alert(
+        `Danh mục "${category.name}" còn ${productCount} món. ` +
+        "Hãy chuyển món sang danh mục khác hoặc lưu trữ món trước khi xóa.",
+      );
+      return;
+    }
+    if (!confirm(`Xóa danh mục "${category.name}"? Hành động này không hoàn tác được.`)) return;
+    try {
+      await api(`/categories/${category.id}`, { method: "DELETE" });
+      await refreshMenu();
+    } catch (err) {
+      showError(err);
+    }
+  }
+
   async function togglePublish() {
     if (!menu) return;
     try {
@@ -454,19 +482,41 @@ export default function MenuPage() {
               <>
                 <p className="mb-2 text-sm font-medium">{menu.name}</p>
                 <ul className="space-y-1">
-                  {menu.categories.map((c) => (
-                    <li
-                      key={c.id}
-                      className="flex items-center justify-between rounded-lg bg-orange-50 px-3 py-2 text-sm"
-                    >
-                      <span className={c.isVisible ? "" : "text-gray-400 line-through"}>
-                        {c.name}
-                      </span>
-                      <span className="text-xs text-gray-400">
-                        {products.filter((p) => p.categoryId === c.id).length} món
-                      </span>
-                    </li>
-                  ))}
+                  {menu.categories.map((c) => {
+                    const count = products.filter((p) => p.categoryId === c.id).length;
+                    return (
+                      <li
+                        key={c.id}
+                        className="group flex items-center gap-2 rounded-lg bg-orange-50 px-3 py-2 text-sm"
+                      >
+                        <span className={`flex-1 truncate ${c.isVisible ? "" : "text-gray-400 line-through"}`}>
+                          {c.name}
+                        </span>
+                        <span className="text-xs text-gray-400">{count} món</span>
+                        <button
+                          onClick={() => renameCategory(c)}
+                          title="Đổi tên danh mục"
+                          className="rounded p-1 text-gray-400 hover:bg-white hover:text-brand-600"
+                        >
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => deleteCategory(c, count)}
+                          title="Xóa danh mục"
+                          className="rounded p-1 text-gray-400 hover:bg-white hover:text-danger"
+                        >
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="3 6 5 6 21 6" />
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                          </svg>
+                        </button>
+                      </li>
+                    );
+                  })}
                 </ul>
                 <CategoryForm onAdd={addCategory} />
               </>

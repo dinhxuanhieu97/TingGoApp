@@ -23,6 +23,7 @@ public sealed record RefreshDto(string RefreshToken);
 public sealed record StaffLoginDto(Guid? VenueId, string? VenueCode, string StaffCode, string Pin, string? DeviceName);
 public sealed record CreateStaffDto(string DisplayName, string Role, string? StaffCode, string Pin);
 public sealed record ResetPinDto(string Pin);
+public sealed record UpdateStaffDto(string? DisplayName, string? Role);
 
 public sealed class IdentityModule : IModule
 {
@@ -124,6 +125,14 @@ public sealed class IdentityModule : IModule
         {
             var items = await service.ListStaffAsync(GetUserId(principal), venueId, ct);
             return Results.Ok(items);
+        }).RequireAuthorization();
+
+        endpoints.MapPatch("/venues/{venueId:guid}/staff/{staffId:guid}", async (
+            Guid venueId, Guid staffId, UpdateStaffDto dto, ClaimsPrincipal principal,
+            StaffService service, CancellationToken ct) =>
+        {
+            await service.UpdateStaffAsync(GetUserId(principal), venueId, staffId, dto.DisplayName, dto.Role, ct);
+            return Results.NoContent();
         }).RequireAuthorization();
 
         endpoints.MapPost("/venues/{venueId:guid}/staff/{staffId:guid}/reset-pin", async (

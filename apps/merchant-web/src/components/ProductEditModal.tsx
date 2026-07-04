@@ -285,6 +285,26 @@ export default function ProductEditModal({ productId, venueId, categories, onClo
           </button>
           <button onClick={onClose} className="flex-1 rounded-xl border py-2.5 hover:bg-gray-50">Đóng</button>
         </div>
+
+        {/* Xóa món = lưu trữ: món biến mất khỏi menu nhưng order cũ vẫn giữ snapshot */}
+        <button
+          onClick={async () => {
+            if (!confirm(
+              "Xóa món này khỏi menu? Món sẽ không hiện với khách nữa. " +
+              "Các order đã đặt trước đó không bị ảnh hưởng.",
+            )) return;
+            try {
+              await api(`/products/${productId}/archive`, { method: "POST" });
+              await onSaved();
+              onClose();
+            } catch (err) {
+              setError(err instanceof ApiError ? err.message : "Không xóa được món.");
+            }
+          }}
+          className="mt-2 w-full rounded-xl py-2 text-sm font-medium text-danger hover:bg-red-50"
+        >
+          Xóa món khỏi menu
+        </button>
       </div>
     </div>
   );
