@@ -19,6 +19,24 @@ interface VenueDetail {
 
 const API_ORIGIN = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5080/api/v1").replace("/api/v1", "");
 
+interface OpeningHourRow {
+  dayOfWeek: number;
+  openTime: string | null;
+  closeTime: string | null;
+  isClosed: boolean;
+}
+
+const DAY_LABEL = ["", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ nhật"];
+
+function defaultHours(): OpeningHourRow[] {
+  return Array.from({ length: 7 }, (_, i) => ({
+    dayOfWeek: i + 1,
+    openTime: "07:00",
+    closeTime: "22:00",
+    isClosed: false,
+  }));
+}
+
 export default function SettingsPage() {
   const router = useRouter();
   const [venue, setVenue] = useState<VenueDetail | null>(null);
@@ -28,6 +46,8 @@ export default function SettingsPage() {
   const [locale, setLocale] = useState("");
   const [currency, setCurrency] = useState("");
   const [bankQrFile, setBankQrFile] = useState<File | null>(null);
+  const [hours, setHours] = useState<OpeningHourRow[]>(defaultHours());
+  const [savingHours, setSavingHours] = useState(false);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
@@ -51,6 +71,16 @@ export default function SettingsPage() {
         setTimezone(detail.timezone);
         setLocale(detail.defaultLocale);
         setCurrency(detail.currencyCode);
+        const savedHours = await api<OpeningHourRow[]>(`/venues/${detail.id}/opening-hours`);
+        if (savedHours.length > 0) {
+          setHours(
+            Array.from({ length: 7 }, (_, i) =>
+              savedHours.find((h) => h.dayOfWeek === i + 1) ?? {
+                dayOfWeek: i + 1, openTime: null, closeTime: null, isClosed: true,
+              },
+            ),
+          );
+        }
       } catch (err) {
         setError(err instanceof ApiError ? err.message : "Không tải được cài đặt.");
       }
@@ -164,6 +194,69 @@ export default function SettingsPage() {
             {saving ? "Đang lưu..." : "Lưu cài đặt"}
           </button>
         </form>
+
+        <div className="mt-6 rounded-2xl bg-white p-5 shadow">
+          <h2 className="mb-3 font-semibold">Giờ mở cửa</h2>
+          <div className="space-y-1.5">
+            {hours.map((row, index) => (
+              <div key={row.dayOfWeek} className="flex items-center gap-2 text-sm">
+                <span className="w-16 font-medium">{DAY_LABEL[row.dayOfWeek]}</span>
+                <input
+                  type="time"
+                  value={row.openTime ?? ""}
+                  disabled={row.isClosed}
+                  onChange={(e) =>
+                    setHours((prev) => prev.map((h, i) => (i === index ? { ...h, openTime: e.target.value } : h)))
+                  }
+                  className="rounded-lg border border-gray-300 px-2 py-1 disabled:bg-gray-100 disabled:text-gray-400"
+                />
+                <span className="text-gray-400">–</span>
+                <input
+                  type="time"
+                  value={row.closeTime ?? ""}
+                  disabled={row.isClosed}
+                  onChange={(e) =>
+                    setHours((prev) => prev.map((h, i) => (i === index ? { ...h, closeTime: e.target.value } : h)))
+                  }
+                  className="rounded-lg border border-gray-300 px-2 py-1 disabled:bg-gray-100 disabled:text-gray-400"
+                />
+                <label className="ml-auto flex items-center gap-1 text-xs text-gray-500">
+                  <input
+                    type="checkbox"
+                    checked={row.isClosed}
+                    onChange={(e) =>
+                      setHours((prev) => prev.map((h, i) => (i === index ? { ...h, isClosed: e.target.checked } : h)))
+                    }
+                  />
+                  Nghỉ
+                </label>
+              </div>
+            ))}
+          </div>
+          <button
+            disabled={savingHours}
+            onClick={async () => {
+              if (!venue) return;
+              setSavingHours(true);
+              setError("");
+              try {
+                await api(`/venues/${venue.id}/opening-hours`, {
+                  method: "PUT",
+                  body: { days: hours },
+                });
+                setNotice("Đã lưu giờ mở cửa.");
+                setTimeout(() => setNotice(""), 3000);
+              } catch (err) {
+                setError(err instanceof ApiError ? err.message : "Không lưu được giờ mở cửa.");
+              } finally {
+                setSavingHours(false);
+              }
+            }}
+            className="mt-3 w-full rounded-xl bg-orange-600 py-2.5 font-semibold text-white hover:bg-orange-700 disabled:opacity-50"
+          >
+            {savingHours ? "Đang lưu..." : "Lưu giờ mở cửa"}
+          </button>
+        </div>
       </div>
     </main>
   );

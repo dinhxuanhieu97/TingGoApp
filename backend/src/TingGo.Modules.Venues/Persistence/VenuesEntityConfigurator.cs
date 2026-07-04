@@ -70,6 +70,19 @@ public sealed class VenuesEntityConfigurator : IModuleEntityConfigurator
             e.HasIndex(x => x.AreaId);
         });
 
+        b.Entity<OpeningHour>(e =>
+        {
+            e.ToTable("opening_hours");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasColumnName("id");
+            e.Property(x => x.VenueId).HasColumnName("venue_id");
+            e.Property(x => x.DayOfWeekIso).HasColumnName("day_of_week");
+            e.Property(x => x.OpenTime).HasColumnName("open_time");
+            e.Property(x => x.CloseTime).HasColumnName("close_time");
+            e.Property(x => x.IsClosed).HasColumnName("is_closed");
+            e.HasIndex(x => new { x.VenueId, x.DayOfWeekIso }).IsUnique();
+        });
+
         b.Entity<QrCode>(e =>
         {
             e.ToTable("qr_codes");

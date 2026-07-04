@@ -137,6 +137,7 @@ public sealed class VenuesModule : IModule
 
         Endpoints.TableEndpoints.Map(endpoints);
         Endpoints.PublicQrEndpoints.Map(endpoints);
+        Endpoints.OpeningHourEndpoints.Map(endpoints);
 
         endpoints.MapPatch("/organizations/{id:guid}", async (
             Guid id, UpdateOrganizationDto dto, ClaimsPrincipal principal, TingGoDbContext db,

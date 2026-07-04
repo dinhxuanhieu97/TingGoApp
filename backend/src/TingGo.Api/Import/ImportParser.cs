@@ -66,6 +66,42 @@ public static partial class ImportParser
             return (new VenueRowData(NullIf(wifi), NullIf(locale), NullIf(currency), NullIf(timezone)), null);
         });
 
+        // --- OpeningHours ---
+        var seenDays = new HashSet<int>();
+        ParseSheet(workbook, "OpeningHours", result, jobId, ImportSections.OpeningHours, (row, ctx) =>
+        {
+            var dayRaw = Str(row, 1).ToUpperInvariant();
+            var day = dayRaw switch
+            {
+                "MONDAY" or "T2" or "1" => 1, "TUESDAY" or "T3" or "2" => 2,
+                "WEDNESDAY" or "T4" or "3" => 3, "THURSDAY" or "T5" or "4" => 4,
+                "FRIDAY" or "T6" or "5" => 5, "SATURDAY" or "T7" or "6" => 6,
+                "SUNDAY" or "CN" or "7" => 7, _ => 0,
+            };
+            if (day == 0)
+            {
+                ctx.Error("IMPORT_INVALID_DAY", "day_of_week",
+                    $"day_of_week '{dayRaw}' không hợp lệ (MONDAY..SUNDAY hoặc 1..7).");
+                return (null, null);
+            }
+            if (!seenDays.Add(day))
+            {
+                ctx.Error("IMPORT_DUPLICATE_CODE", "day_of_week", $"Ngày '{dayRaw}' bị lặp.");
+                return (null, null);
+            }
+            var isClosed = Bool(row, 4, false);
+            var openTime = Str(row, 2);
+            var closeTime = Str(row, 3);
+            if (!isClosed && (!TimeOnly.TryParse(openTime, out _) || !TimeOnly.TryParse(closeTime, out _)))
+            {
+                ctx.Error("IMPORT_INVALID_TIME", "open_time",
+                    "open_time/close_time phải dạng HH:mm (hoặc is_closed=TRUE).");
+                return (null, null);
+            }
+            return (new OpeningHourRowData(day, isClosed ? null : openTime, isClosed ? null : closeTime, isClosed),
+                dayRaw);
+        });
+
         // --- Areas ---
         ParseSheet(workbook, "Areas", result, jobId, ImportSections.Areas, (row, ctx) =>
         {
@@ -245,7 +281,7 @@ public static partial class ImportParser
         ValidateGroupOptionCounts(result, jobId);
 
         // Sheet chưa hỗ trợ
-        foreach (var sheetName in new[] { "OpeningHours", "Translations" })
+        foreach (var sheetName in new[] { "Translations" })
         {
             if (workbook.Worksheets.TryGetWorksheet(sheetName, out var sheet) && sheet.RowsUsed().Skip(1).Any())
             {

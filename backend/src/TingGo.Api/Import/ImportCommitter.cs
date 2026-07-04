@@ -51,6 +51,27 @@ public static class ImportCommitter
             currencyCode = venue.CurrencyCode;
         }
 
+        // Opening hours: thay theo ngày có trong file
+        var hourRows = Section<OpeningHourRowData>(ImportSections.OpeningHours);
+        if (hourRows.Count > 0)
+        {
+            var days = hourRows.Select(h => h.DayOfWeek).ToList();
+            await db.Set<OpeningHour>()
+                .Where(x => x.VenueId == job.VenueId && days.Contains(x.DayOfWeekIso))
+                .ExecuteDeleteAsync(ct);
+            foreach (var hour in hourRows)
+            {
+                db.Add(new OpeningHour
+                {
+                    VenueId = job.VenueId,
+                    DayOfWeekIso = hour.DayOfWeek,
+                    OpenTime = hour.OpenTime is null ? null : TimeOnly.Parse(hour.OpenTime),
+                    CloseTime = hour.CloseTime is null ? null : TimeOnly.Parse(hour.CloseTime),
+                    IsClosed = hour.IsClosed,
+                });
+            }
+        }
+
         // Areas
         var areaByCode = new Dictionary<string, VenueArea>(StringComparer.OrdinalIgnoreCase);
         var existingAreaCount = await db.Set<VenueArea>().CountAsync(a => a.VenueId == job.VenueId, ct);

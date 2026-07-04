@@ -4,6 +4,8 @@ namespace TingGo.Api.Import;
 public sealed record VenueRowData(
     string? WifiName, string? DefaultLocale, string? CurrencyCode, string? Timezone);
 
+public sealed record OpeningHourRowData(int DayOfWeek, string? OpenTime, string? CloseTime, bool IsClosed);
+
 public sealed record AreaRowData(string Code, string Name, int SortOrder, bool IsActive);
 
 public sealed record TableRowData(string Code, string Name, string AreaCode, int SortOrder, bool IsActive);
@@ -29,6 +31,7 @@ public sealed record ProductModifierRowData(string ProductCode, string GroupCode
 public static class ImportSections
 {
     public const string Venue = "VENUE";
+    public const string OpeningHours = "OPENING_HOURS";
     public const string Areas = "AREAS";
     public const string Tables = "TABLES";
     public const string Categories = "CATEGORIES";

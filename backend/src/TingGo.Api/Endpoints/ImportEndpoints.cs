@@ -357,6 +357,10 @@ public static class ImportEndpoints
         AddSheet(workbook, "Venue",
             ["venue_name (đối chiếu)", "default_locale", "currency_code", "timezone", "wifi_name", "phone", "email", "address", "tax_rate"],
             [["TingGo Cafe", "vi-VN", "VND", "Asia/Ho_Chi_Minh", "TingGo Guest", "", "", "", ""]]);
+        AddSheet(workbook, "OpeningHours",
+            ["day_of_week", "open_time", "close_time", "is_closed"],
+            [["MONDAY", "07:00", "22:00", "FALSE"], ["TUESDAY", "07:00", "22:00", "FALSE"],
+             ["SUNDAY", "", "", "TRUE"]]);
         AddSheet(workbook, "Areas",
             ["area_code", "area_name", "sort_order", "is_active"],
             [["FLOOR_1", "Tầng 1", "1", "TRUE"], ["GARDEN", "Sân vườn", "2", "TRUE"]]);

@@ -46,8 +46,15 @@ public static class PublicQrEndpoints
             var area = await db.Set<VenueArea>().AsNoTracking()
                 .FirstOrDefaultAsync(x => x.Id == table.AreaId, ct);
 
+            // CUS-09: giờ mở cửa + trạng thái hiện tại theo timezone quán
+            var hours = await db.Set<OpeningHour>().AsNoTracking()
+                .Where(x => x.VenueId == venue.Id).ToListAsync(ct);
+            var (isOpenNow, todayHours) = OpeningHourEndpoints.EvaluateOpenNow(hours, venue.Timezone);
+
             return Results.Ok(new
             {
+                isOpenNow,
+                todayHours,
                 venue = new
                 {
                     venue.Id, venue.Name, venue.Slug,

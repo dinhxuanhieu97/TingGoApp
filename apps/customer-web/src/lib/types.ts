@@ -1,4 +1,6 @@
 export interface QrContext {
+  isOpenNow: boolean | null;
+  todayHours: string | null;
   venue: {
     id: string;
     name: string;

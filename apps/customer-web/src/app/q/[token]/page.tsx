@@ -258,6 +258,14 @@ export default function QrPage({ params }: { params: Promise<{ token: string }> 
           className="mt-2 w-full rounded-full border border-gray-200 bg-gray-50 px-4 py-2 text-sm focus:border-orange-400 focus:outline-none"
         />
         <p className="mt-1.5 text-[11px] text-gray-400">
+          {context?.todayHours && (
+            <>
+              <span className={context.isOpenNow ? "font-semibold text-green-600" : "font-semibold text-red-500"}>
+                {context.isOpenNow ? "● Đang mở cửa" : "● Ngoài giờ"}
+              </span>
+              {" "}· Hôm nay: {context.todayHours} ·{" "}
+            </>
+          )}
           Thanh toán:{" "}
           {context?.venue.paymentMethods
             ?.map((m) => (m === "cash" ? "Tiền mặt" : "Chuyển khoản QR"))
