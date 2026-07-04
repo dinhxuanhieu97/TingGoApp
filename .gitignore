@@ -28,3 +28,6 @@ appsettings.*.local.json
 
 # Ảnh upload dev
 backend/uploads/
+
+# Repo tham khảo CapCut TTS (embedded — không track)
+capcut-tts-api/
